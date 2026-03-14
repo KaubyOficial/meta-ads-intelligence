@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import math
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -55,6 +56,21 @@ def extract_primary_action(actions: list | None, primary_types: list[str] | None
     return extract_action_value(actions, "link_click")
 
 
+# ── Safe numeric parsing ─────────────────────────────────────────────────────
+def safe_float(value, default=0.0):
+    try:
+        return float(value) if value else default
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_int(value, default=0):
+    try:
+        return int(float(value)) if value else default
+    except (ValueError, TypeError):
+        return default
+
+
 # ── Load raw JSON ─────────────────────────────────────────────────────────────
 def load_json(path: Path) -> list[dict]:
     if not path.exists():
@@ -81,11 +97,11 @@ def normalize_insights(insights: list[dict]) -> pd.DataFrame:
         actions = row.get("actions") or []
         action_values = row.get("action_values") or []
 
-        spend = float(row.get("spend", 0) or 0)
-        impressions = int(row.get("impressions", 0) or 0)
-        clicks = int(row.get("clicks", 0) or 0)
-        reach = int(row.get("reach", 0) or 0)
-        frequency = float(row.get("frequency", 0) or 0)
+        spend = safe_float(row.get("spend"))
+        impressions = safe_int(row.get("impressions"))
+        clicks = safe_int(row.get("clicks"))
+        reach = safe_int(row.get("reach"))
+        frequency = safe_float(row.get("frequency"))
 
         # Derived: CPC, CTR, CPM
         cpc = float(row.get("cpc", 0) or 0) or (spend / clicks if clicks > 0 else 0.0)
@@ -152,7 +168,9 @@ def load_previous_period(target_date: str, days_back: int = 7) -> pd.DataFrame:
 
 
 def compute_delta(current: float, previous: float) -> float | None:
-    if previous == 0:
+    if previous == 0 or (isinstance(previous, float) and math.isnan(previous)):
+        return None
+    if isinstance(current, float) and math.isnan(current):
         return None
     return round((current - previous) / previous * 100, 2)
 
@@ -175,9 +193,9 @@ def generate_metrics_summary(df: pd.DataFrame, prev_df: pd.DataFrame, date_label
         ads_active=("ad_id", "nunique"),
     ).reset_index()
 
-    agg["avg_ctr"] = (agg["total_clicks"] / agg["total_impressions"] * 100).round(4)
+    agg["avg_ctr"] = (agg["total_clicks"] / agg["total_impressions"].replace(0, float("nan")) * 100).round(4)
     agg["avg_cpc"] = (agg["total_spend"] / agg["total_clicks"].replace(0, float("nan"))).round(4)
-    agg["avg_cpm"] = (agg["total_spend"] / agg["total_impressions"] * 1000).round(4)
+    agg["avg_cpm"] = (agg["total_spend"] / agg["total_impressions"].replace(0, float("nan")) * 1000).round(4)
     agg["roas"] = (agg["total_purchase_value"] / agg["total_spend"].replace(0, float("nan"))).round(4)
     agg["avg_ctr"] = agg["avg_ctr"].fillna(0)
     agg["avg_cpc"] = agg["avg_cpc"].fillna(0)
@@ -292,6 +310,9 @@ def save_csv(df: pd.DataFrame, path: Path, name: str) -> bool:
         existing = pd.read_csv(path, dtype=str)
         if "date" in existing.columns and "date" in df.columns:
             current_dates = df["date"].unique().tolist()
+            replaced_count = existing[existing["date"].isin(current_dates)].shape[0]
+            if replaced_count > 0:
+                print(f"  INFO: Replacing {replaced_count} existing rows for dates: {current_dates}")
             existing = existing[~existing["date"].isin(current_dates)]
             df = pd.concat([existing, df.astype(str)], ignore_index=True)
         # else full overwrite
@@ -316,8 +337,20 @@ def main():
     )
     args = parser.parse_args()
 
-    target_date = args.date
+    try:
+        target_date = args.date
+        date.fromisoformat(target_date)
+    except ValueError:
+        print(f"ERROR: Invalid date format: '{args.date}'. Use YYYY-MM-DD.")
+        sys.exit(1)
+
     date_since = args.date_since or target_date
+    if args.date_since:
+        try:
+            date.fromisoformat(args.date_since)
+        except ValueError:
+            print(f"ERROR: Invalid --date-since format: '{args.date_since}'. Use YYYY-MM-DD.")
+            sys.exit(1)
 
     print(f"\n{'='*60}")
     print(f"Meta Ads Processor — {date_since} to {target_date}")

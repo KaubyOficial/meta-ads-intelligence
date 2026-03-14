@@ -76,13 +76,49 @@ Verify all required sections are present:
 
 ### Step 2 — Load Template
 
+Select template based on input:
+- If `template == "daily"` (default): load `templates/daily-report-tmpl.md`
+- If `template == "weekly"`: load `templates/weekly-summary-tmpl.md`
+
 ```
-Read: templates/daily-report-tmpl.md
+Read: templates/{template_file}
+```
+
+### Step 2.5 — Placeholder Mapping Reference
+
+Use this mapping to connect JSON artifact fields to template placeholders:
+
+```yaml
+placeholder_mapping:
+  "{{DATE}}": "date"
+  "{{ACCOUNT_ID}}": "account_id"
+  "{{DATE_SINCE}}": "derived from date range"
+  "{{DATE_UNTIL}}": "derived from date range"
+  "{{ANALYSIS_FOCUS_LABEL}}": "analysis_focus_label"
+  "{{TOTAL_SPEND}}": "summary.total_spend"
+  "{{TOTAL_RESULTS}}": "summary.total_results"
+  "{{ROAS}}": "summary.roas"
+  "{{AVG_CTR}}": "summary.avg_ctr"
+  "{{AVG_CPM}}": "summary.avg_cpm"
+  "{{AVG_CPC}}": "summary.avg_cpc"
+  "{{TOTAL_IMPRESSIONS}}": "summary.total_impressions"
+  "{{TOTAL_CLICKS}}": "summary.total_clicks"
+  "{{DELTA_SPEND}}": "summary.delta_spend_pct"
+  "{{DELTA_RESULTS}}": "summary.delta_results_pct"
+  "{{DELTA_ROAS}}": "computed from summary"
+  "{{VERDICT}}": "summary.verdict"
+  "{{NARRATIVE_INSIGHTS}}": "insights[] → render as paragraphs"
+  "{{TOP_CAMPAIGNS_TABLE}}": "top_campaigns[] → render as MD table"
+  "{{BOTTOM_CAMPAIGNS_TABLE}}": "bottom_campaigns[] → render as MD table"
+  "{{ANOMALIES_SECTION}}": "anomalies[] → render grouped by severity"
+  "{{ADS_TABLE}}": "top_ads[] + bottom_ads[] → render as MD table"
+  "{{RECOMMENDATIONS_LIST}}": "recommendations[] → render as numbered list"
+  "{{RULES_APPLIED_LIST}}": "rules_applied[] → render as bullet list"
 ```
 
 ### Step 3 — Populate Report
 
-Replace every `{{PLACEHOLDER}}` in the template with real data from the JSON artifact.
+Replace every `{{PLACEHOLDER}}` in the template with real data from the JSON artifact, using the mapping above.
 
 **For each section:**
 

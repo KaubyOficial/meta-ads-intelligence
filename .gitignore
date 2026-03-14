@@ -20,6 +20,10 @@ env/
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+logs/
+
 # Editors
 .vscode/
 .idea/

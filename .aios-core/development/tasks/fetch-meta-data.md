@@ -1,6 +1,6 @@
 ---
 task: fetchMetaData()
-responsável: Dex (@dev)
+responsável: Dev (@dev)
 responsavel_type: Agente
 atomic_layer: Organism
 elicit: false

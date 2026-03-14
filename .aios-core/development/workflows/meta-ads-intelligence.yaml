@@ -105,6 +105,7 @@ workflow:
       phase_name: "Análise de Performance"
       agent: analyst
       action: analyze-meta-performance  # task-reference: analyze-meta-performance.md
+      blockedBy: collect_meta_data
       elicit: true
       duration_estimate: "10-20 min"
       requires:
@@ -147,8 +148,11 @@ workflow:
       phase_name: "Geração do Relatório"
       agent: analyst
       action: generate-meta-report  # task-reference: generate-meta-report.md
+      blockedBy: analyze_performance
       elicit: false
       duration_estimate: "5-10 min"
+      inputs:
+        template: "{report_template}"
       requires:
         - .ai/meta-analysis-{YYYY-MM-DD}.json
         - templates/daily-report-tmpl.md

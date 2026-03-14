@@ -75,6 +75,12 @@ Saída:
 ═══════════════════════════════════════════════════════════
 ```
 
+### Input Validation
+Se o input do usuário não for um inteiro entre 1 e 5:
+- Re-exibir o menu com mensagem: "Opção inválida. Selecione um número de 1 a 5:"
+- Máximo 3 tentativas
+- Após 3 tentativas inválidas, usar default: 5 (análise completa)
+
 Wait for user response before proceeding.
 
 ---
@@ -85,9 +91,23 @@ Wait for user response before proceeding.
 
 **This step is non-negotiable. Always execute before reading any CSV.**
 
+#### Date Resolution
+A data usada nos filenames é determinada por:
+1. Se invocado via workflow: usar o `date_since` resolvido pelo collector
+2. Se invocado isoladamente: usar `max(date)` da coluna `date` em `metrics_summary.csv`
+3. Fallback: `date.today().isoformat()`
+
+Armazenar como variável `analysis_date` e usar em todos os paths.
+
 ```
 Read: config/analyst-rules.md
 ```
+
+Se `config/analyst-rules.md` não existir ou estiver vazio:
+1. Exibir WARNING: "analyst-rules.md não encontrado — usando defaults"
+2. Registrar em `rules_applied`: ["No custom rules (analyst-rules.md missing) — all defaults applied"]
+3. Continuar com todos os thresholds default
+4. NÃO abortar a análise
 
 Extract and apply:
 - Override ROAS threshold if specified

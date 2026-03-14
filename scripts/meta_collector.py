@@ -14,6 +14,7 @@ Date ranges: today | yesterday | last_7d | last_30d
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import date, timedelta
@@ -86,37 +87,6 @@ def resolve_date_range(date_range: str) -> tuple[str, str]:
 
 
 # ── Pagination helper ─────────────────────────────────────────────────────────
-def fetch_all_pages(cursor, max_retries: int = 5) -> list[dict]:
-    results = []
-    attempt = 0
-    while cursor:
-        try:
-            for item in cursor:
-                results.append(item.export_all_data())
-            cursor = cursor.load_next_page() if cursor.load_next_page else None
-        except AttributeError:
-            # cursor exhausted
-            break
-        except FacebookRequestError as e:
-            error_code = e.api_error_code()
-            if error_code == 80000:  # Rate limit
-                wait = 2 ** attempt
-                attempt += 1
-                if attempt > max_retries:
-                    print(f"  Rate limit: max retries exceeded. Last error: {e}")
-                    raise
-                print(f"  Rate limit hit. Waiting {wait}s (attempt {attempt}/{max_retries})...")
-                time.sleep(wait)
-                # retry same cursor position
-            elif error_code in (190, 102, 2500):
-                print(f"\nERROR: Invalid or expired access token (code {error_code}).")
-                print("Fix: Update META_ACCESS_TOKEN in your .env file.")
-                sys.exit(1)
-            else:
-                raise
-    return results
-
-
 def fetch_cursor_pages(cursor, max_retries: int = 5) -> list[dict]:
     """Iterate a cursor that supports direct iteration and has_next_page."""
     results = []
@@ -126,8 +96,12 @@ def fetch_cursor_pages(cursor, max_retries: int = 5) -> list[dict]:
         try:
             for item in page:
                 results.append(item.export_all_data())
+            # The Meta SDK modifies `page` in-place via load_next_page().
+            # Returns False when there are no more pages.
             if not page.load_next_page():
                 break
+            # Reset attempt counter after successful page
+            attempt = 0
         except StopIteration:
             break
         except FacebookRequestError as e:
@@ -147,6 +121,14 @@ def fetch_cursor_pages(cursor, max_retries: int = 5) -> list[dict]:
         except Exception:
             break
     return results
+
+
+# ── JSON serializer ───────────────────────────────────────────────────────────
+def _json_serializer(obj):
+    """Serialize datetime objects preserving timezone via isoformat."""
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    return str(obj)
 
 
 # ── Main collector ────────────────────────────────────────────────────────────
@@ -183,7 +165,7 @@ def collect(account_id: str, date_since: str, date_until: str, raw_dir: Path) ->
 
     campaigns_file = raw_dir / "campaigns" / f"{date_label}_campaigns.json"
     campaigns_file.parent.mkdir(parents=True, exist_ok=True)
-    campaigns_file.write_text(json.dumps(campaigns, indent=2, default=str), encoding="utf-8")
+    campaigns_file.write_text(json.dumps(campaigns, indent=2, default=_json_serializer), encoding="utf-8")
     manifest["counts"]["campaigns"] = len(campaigns)
     manifest["files"]["campaigns"] = str(campaigns_file.relative_to(PROJECT_ROOT))
     print(f"  → {len(campaigns)} campaigns saved")
@@ -200,7 +182,7 @@ def collect(account_id: str, date_since: str, date_until: str, raw_dir: Path) ->
 
     adsets_file = raw_dir / "adsets" / f"{date_label}_adsets.json"
     adsets_file.parent.mkdir(parents=True, exist_ok=True)
-    adsets_file.write_text(json.dumps(adsets, indent=2, default=str), encoding="utf-8")
+    adsets_file.write_text(json.dumps(adsets, indent=2, default=_json_serializer), encoding="utf-8")
     manifest["counts"]["adsets"] = len(adsets)
     manifest["files"]["adsets"] = str(adsets_file.relative_to(PROJECT_ROOT))
     print(f"  → {len(adsets)} ad sets saved")
@@ -217,17 +199,22 @@ def collect(account_id: str, date_since: str, date_until: str, raw_dir: Path) ->
 
     ads_file = raw_dir / "ads" / f"{date_label}_ads.json"
     ads_file.parent.mkdir(parents=True, exist_ok=True)
-    ads_file.write_text(json.dumps(ads, indent=2, default=str), encoding="utf-8")
+    ads_file.write_text(json.dumps(ads, indent=2, default=_json_serializer), encoding="utf-8")
     manifest["counts"]["ads"] = len(ads)
     manifest["files"]["ads"] = str(ads_file.relative_to(PROJECT_ROOT))
     print(f"  → {len(ads)} ads saved")
 
     # ── 4. Insights ───────────────────────────────────────────────────────────
     print("Fetching insights...")
+    days_span = (date.fromisoformat(date_until) - date.fromisoformat(date_since)).days + 1
+    if days_span <= 7:
+        time_increment = 1
+    else:
+        time_increment = 7  # Weekly aggregation for ranges > 7 days
     params = {
         "time_range": {"since": date_since, "until": date_until},
         "level": "ad",
-        "time_increment": 1,
+        "time_increment": time_increment,
     }
     try:
         insights_cursor = account.get_insights(fields=INSIGHT_FIELDS, params=params)
@@ -239,17 +226,30 @@ def collect(account_id: str, date_since: str, date_until: str, raw_dir: Path) ->
 
     insights_file = raw_dir / "insights" / f"{date_label}_insights.json"
     insights_file.parent.mkdir(parents=True, exist_ok=True)
-    insights_file.write_text(json.dumps(insights, indent=2, default=str), encoding="utf-8")
+    insights_file.write_text(json.dumps(insights, indent=2, default=_json_serializer), encoding="utf-8")
     manifest["counts"]["insights_rows"] = len(insights)
     manifest["files"]["insights"] = str(insights_file.relative_to(PROJECT_ROOT))
     print(f"  → {len(insights)} insight rows saved")
 
     # ── Manifest ──────────────────────────────────────────────────────────────
     manifest_file = raw_dir / f"{date_label}_manifest.json"
-    manifest_file.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
+    manifest_file.write_text(json.dumps(manifest, indent=2, default=_json_serializer), encoding="utf-8")
 
-    if not insights and not campaigns and not adsets and not ads:
-        manifest["warnings"].append("No data collected — check account ID and token permissions")
+    empty_entities = []
+    if not campaigns:
+        empty_entities.append("campaigns")
+    if not adsets:
+        empty_entities.append("adsets")
+    if not ads:
+        empty_entities.append("ads")
+    if not insights:
+        empty_entities.append("insights")
+
+    if empty_entities:
+        if len(empty_entities) == 4:
+            manifest["warnings"].append("No data collected — check account ID and token permissions")
+        else:
+            manifest["warnings"].append(f"Partial data: empty entities: {', '.join(empty_entities)}")
 
     print(f"\n{'='*60}")
     print("Collection complete!")
@@ -299,7 +299,15 @@ def main():
     if not account_id.startswith("act_"):
         account_id = f"act_{account_id}"
 
+    if not re.match(r'^act_\d+$', account_id):
+        print(f"ERROR: Invalid account ID format: '{account_id}'. Expected: act_XXXXXXX (digits only)")
+        sys.exit(1)
+
     # ── Initialize API ────────────────────────────────────────────────────────
+    if not app_id or not app_secret:
+        print("WARNING: META_APP_ID and/or META_APP_SECRET not set in .env")
+        print("  Some API calls may fail. See .env.example for required variables.")
+
     FacebookAdsApi.init(
         app_id=app_id or "0",
         app_secret=app_secret or "",
