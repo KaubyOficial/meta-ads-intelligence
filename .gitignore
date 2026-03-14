@@ -1,0 +1,27 @@
+# Credentials — NEVER commit
+.env
+
+# Raw API data — large, regeneratable, may contain PII
+data/raw/
+
+# Analysis artifacts
+.ai/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo

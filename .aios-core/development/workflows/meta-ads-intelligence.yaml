@@ -1,0 +1,306 @@
+workflow:
+  id: meta-ads-intelligence
+  name: Meta Ads Intelligence — Read-Only Analysis Pipeline
+  version: "1.0"
+  description: >-
+    Coleta dados da Meta Marketing API, processa em CSVs normalizados,
+    analisa performance com @analyst aplicando regras customizadas do usuário,
+    e gera relatório Markdown estruturado.
+    Fase atual: somente leitura — sem escrita na Meta API.
+  type: sequential
+  project_types:
+    - paid-traffic-analysis
+    - meta-ads-intelligence
+    - performance-reporting
+
+  metadata:
+    elicit: false
+    confirmation_required: false
+    phase: read-only
+    action_types:
+      task-reference: "Action references a task file in .aios-core/development/tasks/"
+      script-execution: "Action runs a Python script directly"
+      workflow-action: "Action is a workflow orchestration step"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #                              INPUTS
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  inputs:
+    date_range:
+      type: string
+      default: "yesterday"
+      required: false
+      choices: [today, yesterday, last_7d, last_30d]
+      description: "Date range to collect and analyze"
+
+    account_id:
+      type: string
+      required: true
+      source: .env
+      env_var: META_AD_ACCOUNT_ID
+      description: "Meta Ad Account ID (e.g., act_XXXXXXXXX)"
+
+    report_template:
+      type: string
+      default: "daily"
+      required: false
+      choices: [daily, weekly]
+      description: "Report template to use"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #                              SEQUENCE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  sequence:
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FASE 1: COLETA DE DADOS
+    # ═════════════════════════════════════════════════════════════════════════
+
+    - step: collect_meta_data
+      phase: 1
+      phase_name: "Coleta de Dados"
+      agent: dev
+      action: fetch-meta-data  # task-reference: fetch-meta-data.md
+      elicit: false
+      duration_estimate: "3-10 min"
+      creates:
+        - data/raw/campaigns/{date}_campaigns.json
+        - data/raw/adsets/{date}_adsets.json
+        - data/raw/ads/{date}_ads.json
+        - data/raw/insights/{date}_insights.json
+        - data/raw/{date}_manifest.json
+        - data/processed/metrics_summary.csv
+        - data/processed/campaign_performance.csv
+        - data/processed/ad_performance.csv
+      notes: |
+        @dev executa a coleta e processamento de dados:
+
+        PASSOS:
+        1. Verificar pré-condições (.env, Python, SDK)
+        2. Executar: python scripts/meta_collector.py --date-range {date_range}
+        3. Validar JSONs criados em data/raw/
+        4. Executar: python scripts/data_processor.py --date {date}
+        5. Validar CSVs em data/processed/
+        6. Imprimir resumo de contagens
+
+        COMANDO: @dev → *task fetch-meta-data
+
+        PRÉ-REQUISITOS:
+        - .env configurado com META_ACCESS_TOKEN e META_AD_ACCOUNT_ID
+        - pip install -r scripts/requirements.txt
+
+        Se token inválido: HALT e instrua o usuário a atualizar .env
+        Se rate limit: aguardar automaticamente (backoff exponencial)
+
+        OUTPUT: 4 JSONs + manifest + 3 CSVs
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FASE 2: ANÁLISE DE PERFORMANCE
+    # ═════════════════════════════════════════════════════════════════════════
+
+    - step: analyze_performance
+      phase: 2
+      phase_name: "Análise de Performance"
+      agent: analyst
+      action: analyze-meta-performance  # task-reference: analyze-meta-performance.md
+      elicit: true
+      duration_estimate: "10-20 min"
+      requires:
+        - data/processed/metrics_summary.csv
+        - data/processed/campaign_performance.csv
+        - data/processed/ad_performance.csv
+        - config/analyst-rules.md
+      creates:
+        - .ai/meta-analysis-{YYYY-MM-DD}.json
+      notes: |
+        @analyst analisa os CSVs e produz artifact JSON:
+
+        ORDEM OBRIGATÓRIA:
+        1. PRIMEIRO: Ler config/analyst-rules.md (substitui todos os defaults)
+        2. Elicitar foco da análise (1-5)
+        3. Ler metrics_summary.csv
+        4. Ler campaign_performance.csv
+        5. Ler ad_performance.csv
+        6. Aplicar framework de análise conforme foco selecionado
+        7. Salvar .ai/meta-analysis-{date}.json
+
+        ELICITAÇÃO:
+        Apresentar menu de foco ao usuário antes de iniciar análise.
+        Aguardar resposta [1-5].
+
+        REGRAS APLICADAS:
+        O campo rules_applied no JSON DEVE listar todas as regras
+        de analyst-rules.md que foram utilizadas na análise.
+
+        COMANDO: @analyst → *task analyze-meta-performance
+
+        OUTPUT: .ai/meta-analysis-{date}.json
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FASE 3: GERAÇÃO DO RELATÓRIO
+    # ═════════════════════════════════════════════════════════════════════════
+
+    - step: generate_report
+      phase: 3
+      phase_name: "Geração do Relatório"
+      agent: analyst
+      action: generate-meta-report  # task-reference: generate-meta-report.md
+      elicit: false
+      duration_estimate: "5-10 min"
+      requires:
+        - .ai/meta-analysis-{YYYY-MM-DD}.json
+        - templates/daily-report-tmpl.md
+      creates:
+        - docs/reports/{YYYY-MM-DD}-daily-report.md
+      notes: |
+        @analyst gera relatório Markdown a partir do JSON de análise:
+
+        PASSOS:
+        1. Ler .ai/meta-analysis-{date}.json
+        2. Carregar templates/daily-report-tmpl.md (ou weekly se solicitado)
+        3. Substituir todos {{PLACEHOLDER}} com dados reais
+        4. Adicionar narrativa em cada seção (não copiar strings brutas)
+        5. Validar: nenhum {{PLACEHOLDER}} deve restar
+        6. Salvar docs/reports/{date}-daily-report.md
+
+        POST-CHECK obrigatório:
+        - Seção "Regras Aplicadas" presente e preenchida
+        - Recomendações ordenadas por prioridade (1=mais urgente)
+        - Nenhum placeholder vazio
+
+        COMANDO: @analyst → *task generate-meta-report
+
+        OUTPUT: docs/reports/{date}-daily-report.md
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # WORKFLOW COMPLETE
+    # ═════════════════════════════════════════════════════════════════════════
+
+    - meta: end
+      action: pipeline_complete
+      notes: |
+        ✅ PIPELINE COMPLETO!
+
+        Artefatos gerados:
+        ```
+        data/
+        ├── raw/
+        │   ├── campaigns/{date}_campaigns.json    [FASE 1]
+        │   ├── adsets/{date}_adsets.json          [FASE 1]
+        │   ├── ads/{date}_ads.json                [FASE 1]
+        │   ├── insights/{date}_insights.json      [FASE 1]
+        │   └── {date}_manifest.json               [FASE 1]
+        └── processed/
+            ├── metrics_summary.csv                [FASE 1]
+            ├── campaign_performance.csv           [FASE 1]
+            └── ad_performance.csv                 [FASE 1]
+
+        .ai/
+        └── meta-analysis-{date}.json             [FASE 2]
+
+        docs/reports/
+        └── {date}-daily-report.md                [FASE 3] ⭐
+        ```
+
+        PRÓXIMOS PASSOS:
+        1. Revisar docs/reports/{date}-daily-report.md
+        2. Avaliar recomendações listadas
+        3. Executar ações aprovadas manualmente na plataforma Meta
+
+        IMPORTANTE: Este sistema é READ-ONLY.
+        Todas as recomendações requerem execução manual pelo usuário.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #                              FLOW DIAGRAM
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  flow_diagram: |
+    ```mermaid
+    graph TD
+        A[Start: *workflow meta-ads-intelligence] --> B
+
+        subgraph PHASE_1["FASE 1: Coleta de Dados (3-10 min)"]
+            B[@dev: meta_collector.py] --> C[4 JSONs + manifest em data/raw/]
+            C --> D[@dev: data_processor.py]
+            D --> E[3 CSVs em data/processed/]
+        end
+
+        subgraph PHASE_2["FASE 2: Análise (10-20 min)"]
+            E --> F[@analyst: ler analyst-rules.md]
+            F --> G{Elicitar foco 1-5}
+            G --> H[@analyst: analisar CSVs]
+            H --> I[.ai/meta-analysis-date.json]
+        end
+
+        subgraph PHASE_3["FASE 3: Relatório (5-10 min)"]
+            I --> J[@analyst: carregar template]
+            J --> K[Preencher seções]
+            K --> L[docs/reports/date-daily-report.md]
+        end
+
+        L --> M[Pipeline Complete ✅]
+        M --> N[Usuário revisa relatório]
+
+        style M fill:#90EE90
+        style B fill:#FFE4B5
+        style D fill:#FFE4B5
+        style F fill:#DDA0DD
+        style H fill:#DDA0DD
+        style J fill:#DDA0DD
+        style K fill:#DDA0DD
+    ```
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #                              QUICK REFERENCE
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  quick_reference:
+    fase_1:
+      name: "Coleta de Dados"
+      agent: "@dev"
+      task: "fetch-meta-data"
+      scripts: ["meta_collector.py", "data_processor.py"]
+      output: "data/raw/* + data/processed/*.csv"
+      duration: "3-10 min"
+
+    fase_2:
+      name: "Análise de Performance"
+      agent: "@analyst"
+      task: "analyze-meta-performance"
+      reads: ["data/processed/*.csv", "config/analyst-rules.md"]
+      output: ".ai/meta-analysis-{date}.json"
+      duration: "10-20 min"
+      elicit: true
+
+    fase_3:
+      name: "Geração do Relatório"
+      agent: "@analyst"
+      task: "generate-meta-report"
+      reads: [".ai/meta-analysis-{date}.json"]
+      output: "docs/reports/{date}-daily-report.md"
+      duration: "5-10 min"
+
+  time_estimate:
+    minimum: "18 min"
+    typical: "25-40 min"
+    with_large_account: "45-60 min"
+
+  common_commands:
+    run_full_pipeline: "*workflow meta-ads-intelligence"
+    analysis_only: "*task analyze-meta-performance"
+    report_only: "*task generate-meta-report"
+    collect_specific_range: "*task fetch-meta-data --date-range last_7d"
+
+  decision_guidance:
+    when_to_use:
+      - Daily performance review
+      - Weekly account health check
+      - Investigating performance drops
+      - Before making budget changes
+      - Presenting results to stakeholders
+    when_to_run_only_analysis:
+      - Data already collected (same day re-analysis)
+      - Different focus needed on existing data
+      - Testing analyst-rules.md changes
