@@ -59,14 +59,58 @@ META_API_VERSION=v19.0
 # Dados de ontem (default)
 python scripts/meta_collector.py --date-range yesterday
 
-# Ultimos 7 dias
+# Ultimos 7, 30, 90, 365 dias
 python scripts/meta_collector.py --date-range last_7d
+python scripts/meta_collector.py --date-range last_90d
+python scripts/meta_collector.py --date-range last_365d
+
+# Presets de periodo
+python scripts/meta_collector.py --date-range this_month
+python scripts/meta_collector.py --date-range last_quarter
+python scripts/meta_collector.py --date-range this_year
+
+# Range customizado (qualquer periodo)
+python scripts/meta_collector.py --since 2025-01-01 --until 2025-06-30
+python scripts/meta_collector.py --since 2024-01-01 --until 2024-12-31
 
 # Processar os dados coletados
 python scripts/data_processor.py --date 2024-01-15
 ```
 
-**Date ranges disponiveis:** `today` | `yesterday` | `last_7d` | `last_30d`
+**Presets:** `today` | `yesterday` | `last_7d` | `last_14d` | `last_30d` | `last_60d` | `last_90d` | `last_180d` | `last_365d` | `this_month` | `last_month` | `this_quarter` | `last_quarter` | `this_semester` | `last_semester` | `this_year` | `last_year`
+
+**Custom:** `--since YYYY-MM-DD --until YYYY-MM-DD` (qualquer periodo, sem limitacao)
+
+### Importar dados externos
+
+Importe dados de campanhas de arquivos CSV ou JSON (exportados do Meta Business Manager, planilhas, etc.):
+
+```bash
+# Importar CSV
+python scripts/data_importer.py --file meus_dados.csv --date-label 2025-01-15
+
+# Importar e ja processar automaticamente
+python scripts/data_importer.py --file meus_dados.csv --date-label 2025-01-15 --also-process
+
+# Importar JSON
+python scripts/data_importer.py --file export.json --date-label 2025-01-15
+
+# Merge com dados existentes (ao inves de sobrescrever)
+python scripts/data_importer.py --file extra.csv --date-label 2025-01-15 --merge
+
+# Mapeamento customizado de colunas
+python scripts/data_importer.py --file dados.csv --date-label 2025-01-15 --mapping meu_mapeamento.json
+```
+
+O importer reconhece automaticamente colunas do Meta Business Manager (pt-BR e en). Se suas colunas tiverem nomes diferentes, crie um arquivo de mapeamento JSON:
+
+```json
+{
+  "minha_coluna_gasto": "spend",
+  "minha_coluna_impressoes": "impressions",
+  "data_inicio": "date_start"
+}
+```
 
 ### Pipeline completo (via AIOS)
 
@@ -81,6 +125,7 @@ meta-ads-intelligence/
 ├── scripts/
 │   ├── meta_collector.py       # Coleta dados da Meta API
 │   ├── data_processor.py       # Normaliza JSONs em CSVs
+│   ├── data_importer.py        # Importa CSV/JSON externos
 │   └── requirements.txt        # Dependencias Python
 ├── config/
 │   └── analyst-rules.md        # Regras customizaveis de analise

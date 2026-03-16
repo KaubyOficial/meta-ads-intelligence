@@ -22,8 +22,25 @@ Entrada:
     tipo: string
     origem: User Input or Default
     obrigatório: false
-    validação: One of [today, yesterday, last_7d, last_30d]
+    validação: >
+      Preset: today, yesterday, last_7d, last_14d, last_30d, last_60d,
+      last_90d, last_180d, last_365d, this_month, last_month,
+      this_quarter, last_quarter, this_semester, last_semester,
+      this_year, last_year.
+      Or use --since/--until for custom ranges.
     default: yesterday
+
+  - campo: since
+    tipo: string (YYYY-MM-DD)
+    origem: User Input
+    obrigatório: false
+    validação: ISO date format. Overrides date_range.
+
+  - campo: until
+    tipo: string (YYYY-MM-DD)
+    origem: User Input
+    obrigatório: false
+    validação: ISO date format. Defaults to yesterday if --since is given.
 
   - campo: account_id
     tipo: string
@@ -86,7 +103,14 @@ pre-conditions:
 ### Step 1 — Run Collector
 
 ```bash
+# Preset
 python scripts/meta_collector.py --date-range {date_range}
+
+# Custom range
+python scripts/meta_collector.py --since 2025-01-01 --until 2025-06-30
+
+# Or import external file instead of API fetch
+python scripts/data_importer.py --file export.csv --date-label 2025-01-15 --also-process
 ```
 
 **Expected output:**

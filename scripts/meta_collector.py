@@ -7,11 +7,20 @@ Saves raw JSON to data/raw/ and writes a manifest file.
 Usage:
     python scripts/meta_collector.py --date-range yesterday
     python scripts/meta_collector.py --date-range last_7d --account-id act_XXXX
+    python scripts/meta_collector.py --since 2025-01-01 --until 2025-06-30
+    python scripts/meta_collector.py --since 2025-03-01
 
-Date ranges: today | yesterday | last_7d | last_30d
+Presets: today | yesterday | last_7d | last_14d | last_30d | last_60d |
+         last_90d | last_180d | last_365d | this_month | last_month |
+         this_quarter | last_quarter | this_semester | last_semester |
+         this_year | last_year
+
+Custom: --since YYYY-MM-DD [--until YYYY-MM-DD]
+        (--until defaults to yesterday if omitted)
 """
 
 import argparse
+import calendar
 import json
 import os
 import re
@@ -71,19 +80,87 @@ INSIGHT_FIELDS = [
 
 
 # ── Date range helpers ────────────────────────────────────────────────────────
+PRESETS = [
+    "today", "yesterday",
+    "last_7d", "last_14d", "last_30d", "last_60d",
+    "last_90d", "last_180d", "last_365d",
+    "this_month", "last_month",
+    "this_quarter", "last_quarter",
+    "this_semester", "last_semester",
+    "this_year", "last_year",
+]
+
+
+def _quarter_start(d: date) -> date:
+    """Return the first day of the quarter containing `d`."""
+    q_month = ((d.month - 1) // 3) * 3 + 1
+    return date(d.year, q_month, 1)
+
+
+def _semester_start(d: date) -> date:
+    """Return the first day of the semester containing `d`."""
+    return date(d.year, 1, 1) if d.month <= 6 else date(d.year, 7, 1)
+
+
+def _last_day_of_month(year: int, month: int) -> date:
+    return date(year, month, calendar.monthrange(year, month)[1])
+
+
 def resolve_date_range(date_range: str) -> tuple[str, str]:
     today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    # ── Simple presets ──
     if date_range == "today":
         return str(today), str(today)
     elif date_range == "yesterday":
-        d = today - timedelta(days=1)
-        return str(d), str(d)
-    elif date_range == "last_7d":
-        return str(today - timedelta(days=7)), str(today - timedelta(days=1))
-    elif date_range == "last_30d":
-        return str(today - timedelta(days=30)), str(today - timedelta(days=1))
+        return str(yesterday), str(yesterday)
+
+    # ── last_Nd ──
+    elif date_range.startswith("last_") and date_range.endswith("d"):
+        try:
+            days = int(date_range[5:-1])
+        except ValueError:
+            raise ValueError(f"Unknown date_range: {date_range}")
+        return str(today - timedelta(days=days)), str(yesterday)
+
+    # ── Month presets ──
+    elif date_range == "this_month":
+        return str(date(today.year, today.month, 1)), str(today)
+    elif date_range == "last_month":
+        first_this = date(today.year, today.month, 1)
+        last_prev = first_this - timedelta(days=1)
+        first_prev = date(last_prev.year, last_prev.month, 1)
+        return str(first_prev), str(last_prev)
+
+    # ── Quarter presets ──
+    elif date_range == "this_quarter":
+        return str(_quarter_start(today)), str(today)
+    elif date_range == "last_quarter":
+        qs = _quarter_start(today)
+        last_day = qs - timedelta(days=1)
+        return str(_quarter_start(last_day)), str(last_day)
+
+    # ── Semester presets ──
+    elif date_range == "this_semester":
+        return str(_semester_start(today)), str(today)
+    elif date_range == "last_semester":
+        ss = _semester_start(today)
+        last_day = ss - timedelta(days=1)
+        return str(_semester_start(last_day)), str(last_day)
+
+    # ── Year presets ──
+    elif date_range == "this_year":
+        return str(date(today.year, 1, 1)), str(today)
+    elif date_range == "last_year":
+        return str(date(today.year - 1, 1, 1)), str(date(today.year - 1, 12, 31))
+
     else:
-        raise ValueError(f"Unknown date_range: {date_range}. Choose: today | yesterday | last_7d | last_30d")
+        raise ValueError(
+            f"Unknown date_range: {date_range}.\n"
+            f"Presets: {', '.join(PRESETS)}\n"
+            f"Or use: --since YYYY-MM-DD --until YYYY-MM-DD"
+        )
 
 
 # ── Pagination helper ─────────────────────────────────────────────────────────
@@ -269,12 +346,25 @@ def collect(account_id: str, date_since: str, date_until: str, raw_dir: Path) ->
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main():
-    parser = argparse.ArgumentParser(description="Meta Ads Intelligence — Data Collector")
+    parser = argparse.ArgumentParser(
+        description="Meta Ads Intelligence — Data Collector",
+        epilog=f"Presets: {', '.join(PRESETS)}\nCustom: --since YYYY-MM-DD --until YYYY-MM-DD",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--date-range",
-        choices=["today", "yesterday", "last_7d", "last_30d"],
-        default="yesterday",
-        help="Date range to collect (default: yesterday)",
+        default=None,
+        help=f"Preset date range (default: yesterday). Options: {', '.join(PRESETS)}",
+    )
+    parser.add_argument(
+        "--since",
+        default=None,
+        help="Custom start date (YYYY-MM-DD). Overrides --date-range.",
+    )
+    parser.add_argument(
+        "--until",
+        default=None,
+        help="Custom end date (YYYY-MM-DD). Defaults to yesterday if --since is provided.",
     )
     parser.add_argument(
         "--account-id",
@@ -282,6 +372,36 @@ def main():
         help="Ad account ID (e.g., act_123456). Defaults to META_AD_ACCOUNT_ID in .env",
     )
     args = parser.parse_args()
+
+    # ── Resolve date range ────────────────────────────────────────────────────
+    if args.since:
+        try:
+            date.fromisoformat(args.since)
+        except ValueError:
+            print(f"ERROR: Invalid --since format: '{args.since}'. Use YYYY-MM-DD.")
+            sys.exit(1)
+
+        if args.until:
+            try:
+                date.fromisoformat(args.until)
+            except ValueError:
+                print(f"ERROR: Invalid --until format: '{args.until}'. Use YYYY-MM-DD.")
+                sys.exit(1)
+        else:
+            args.until = str(date.today() - timedelta(days=1))
+
+        if args.since > args.until:
+            print(f"ERROR: --since ({args.since}) is after --until ({args.until})")
+            sys.exit(1)
+
+        date_since, date_until = args.since, args.until
+    else:
+        preset = args.date_range or "yesterday"
+        try:
+            date_since, date_until = resolve_date_range(preset)
+        except ValueError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
 
     # ── Credentials ───────────────────────────────────────────────────────────
     access_token = os.getenv("META_ACCESS_TOKEN")
@@ -315,9 +435,7 @@ def main():
         api_version=api_version,
     )
 
-    date_since, date_until = resolve_date_range(args.date_range)
     raw_dir = PROJECT_ROOT / "data" / "raw"
-
     collect(account_id, date_since, date_until, raw_dir)
 
 

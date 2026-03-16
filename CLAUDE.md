@@ -12,8 +12,9 @@ Read-only Meta Marketing API intelligence system. Collects ad account data, proc
 
 | Path | Description |
 |------|-------------|
-| `scripts/meta_collector.py` | Fetches raw data from Meta API → `data/raw/` |
+| `scripts/meta_collector.py` | Fetches raw data from Meta API → `data/raw/` (any date range) |
 | `scripts/data_processor.py` | Normalizes JSONs → CSVs in `data/processed/` |
+| `scripts/data_importer.py` | Imports external CSV/JSON into the pipeline |
 | `config/analyst-rules.md` | User-defined analysis rules (read first, always) |
 | `data/raw/` | Raw JSON from API — gitignored, immutable after fetch |
 | `data/processed/` | Normalized CSVs — source of truth for analysis |
@@ -39,7 +40,7 @@ For data collection tasks, use **@dev**.
 ```
 
 Steps:
-1. **fetch-meta-data** (@dev) — Runs `meta_collector.py` + `data_processor.py`
+1. **fetch-meta-data** (@dev) — Runs `meta_collector.py` (or `data_importer.py`) + `data_processor.py`
 2. **analyze-meta-performance** (@analyst) — Reads CSVs, applies analyst-rules.md, produces JSON artifact
 3. **generate-meta-report** (@analyst) — Renders Markdown report from JSON artifact
 
@@ -78,8 +79,10 @@ cp .env.example .env
 # 2. Install dependencies
 pip install -r scripts/requirements.txt
 
-# 3. Run pipeline
+# 3. Run pipeline (preset, custom range, or import)
 python scripts/meta_collector.py --date-range yesterday
+python scripts/meta_collector.py --since 2025-01-01 --until 2025-06-30
+python scripts/data_importer.py --file export.csv --date-label 2025-01-15 --also-process
 python scripts/data_processor.py --date $(date +%Y-%m-%d)
 ```
 
@@ -93,4 +96,4 @@ python scripts/data_processor.py --date $(date +%Y-%m-%d)
 
 ---
 
-*Synkra AIOS — Meta Ads Intelligence v1.0*
+*Synkra AIOS — Meta Ads Intelligence v1.1*

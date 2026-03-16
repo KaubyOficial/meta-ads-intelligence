@@ -31,8 +31,26 @@ workflow:
       type: string
       default: "yesterday"
       required: false
-      choices: [today, yesterday, last_7d, last_30d]
-      description: "Date range to collect and analyze"
+      description: >-
+        Preset or custom date range. Presets: today, yesterday, last_7d, last_14d,
+        last_30d, last_60d, last_90d, last_180d, last_365d, this_month, last_month,
+        this_quarter, last_quarter, this_semester, last_semester, this_year, last_year.
+        Custom: use date_since + date_until instead.
+
+    date_since:
+      type: string
+      required: false
+      description: "Custom start date (YYYY-MM-DD). Overrides date_range."
+
+    date_until:
+      type: string
+      required: false
+      description: "Custom end date (YYYY-MM-DD). Defaults to yesterday."
+
+    import_file:
+      type: string
+      required: false
+      description: "Path to external CSV/JSON to import instead of fetching from API."
 
     account_id:
       type: string
@@ -79,7 +97,12 @@ workflow:
 
         PASSOS:
         1. Verificar pré-condições (.env, Python, SDK)
-        2. Executar: python scripts/meta_collector.py --date-range {date_range}
+        2a. Se import_file fornecido:
+            python scripts/data_importer.py --file {import_file} --date-label {date} --also-process
+        2b. Se --since/--until fornecidos:
+            python scripts/meta_collector.py --since {date_since} --until {date_until}
+        2c. Senão (preset):
+            python scripts/meta_collector.py --date-range {date_range}
         3. Validar JSONs criados em data/raw/
         4. Executar: python scripts/data_processor.py --date {date}
         5. Validar CSVs em data/processed/
@@ -296,6 +319,9 @@ workflow:
     analysis_only: "*task analyze-meta-performance"
     report_only: "*task generate-meta-report"
     collect_specific_range: "*task fetch-meta-data --date-range last_7d"
+    collect_custom_range: "*task fetch-meta-data --since 2025-01-01 --until 2025-06-30"
+    collect_full_year: "*task fetch-meta-data --date-range last_year"
+    import_external_csv: "python scripts/data_importer.py --file export.csv --date-label 2025-01-15 --also-process"
 
   decision_guidance:
     when_to_use:
