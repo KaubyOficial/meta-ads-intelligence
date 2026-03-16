@@ -71,6 +71,7 @@ COLUMN_MAP = {
     "Impressions": "impressions",
     "Impressões": "impressions",
     "Impressoes": "impressions",
+    "Término dos relatórios": "date_stop",
     "Reach": "reach",
     "Alcance": "reach",
     "Clicks (all)": "clicks",
@@ -87,14 +88,18 @@ COLUMN_MAP = {
     "Spend": "spend",
     "Valor gasto": "spend",
     "Valor usado": "spend",
+    "Valor usado (BRL)": "spend",
     "Custo": "spend",
     "CPC (All)": "cpc",
     "CPC (all)": "cpc",
     "CPC": "cpc",
+    "CPC (custo por clique no link) (BRL)": "cpc",
     "CTR (All)": "ctr",
     "CTR (all)": "ctr",
     "CTR": "ctr",
+    "CTR (taxa de cliques no link)": "ctr",
     "CPM": "cpm",
+    "CPM (custo por 1.000 impressões) (BRL)": "cpm",
     "Frequency": "frequency",
     "Frequência": "frequency",
     "Frequencia": "frequency",
@@ -129,6 +134,7 @@ OPTIONAL_FIELDS = [
     "impressions", "reach", "clicks", "spend",
     "cpc", "ctr", "cpm", "frequency",
     "actions", "action_values",
+    "results", "purchase_value", "roas",
 ]
 
 
@@ -227,6 +233,17 @@ def apply_column_mapping(df: pd.DataFrame, custom_mapping: dict | None = None) -
                 mapping[src] = dst
 
     if mapping:
+        # If multiple source columns map to the same target, keep only the first
+        seen_targets = {}
+        drop_cols = []
+        for src, dst in mapping.items():
+            if dst in seen_targets:
+                drop_cols.append(src)
+            else:
+                seen_targets[dst] = src
+        if drop_cols:
+            df = df.drop(columns=drop_cols, errors="ignore")
+            mapping = {k: v for k, v in mapping.items() if k not in drop_cols}
         df = df.rename(columns=mapping)
 
     return df
@@ -346,6 +363,26 @@ def main():
     print(f"  Mapped:   {', '.join(mapped_cols)}")
     if unmapped_cols:
         print(f"  Ignored:  {', '.join(unmapped_cols)}")
+
+    # ── Remove summary/total rows ────────────────────────────────────────────
+    # Meta Ads Manager CSV exports include a summary row (first data row)
+    # where entity name columns (ad_name, adset_name, campaign_name) are
+    # empty but metric columns (spend, impressions) have aggregated values.
+    # Including this row double-counts all metrics.
+    entity_cols = [c for c in ["ad_name", "adset_name", "campaign_name"] if c in df.columns]
+    if entity_cols:
+        metric_cols = [c for c in ["spend", "impressions"] if c in df.columns]
+        all_entities_empty = df[entity_cols].apply(
+            lambda col: col.isna() | (col.astype(str).str.strip() == ""), axis=0
+        ).all(axis=1)
+        has_metrics = pd.Series(False, index=df.index)
+        for mc in metric_cols:
+            has_metrics = has_metrics | (df[mc].apply(_parse_number) > 0)
+        summary_mask = all_entities_empty & has_metrics
+        n_removed = summary_mask.sum()
+        if n_removed > 0:
+            df = df[~summary_mask].reset_index(drop=True)
+            print(f"  Removed {n_removed} summary/total row(s)")
 
     # ── Validate required fields ─────────────────────────────────────────────
     missing_required = [f for f in REQUIRED_FIELDS if f not in df.columns]
