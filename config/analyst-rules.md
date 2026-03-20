@@ -2,7 +2,7 @@
 
 > Este arquivo é lido por @analyst ANTES de toda análise.
 > As regras aqui definidas SUBSTITUEM todos os defaults do sistema.
-> Última atualização: 2026-03-17
+> Última atualização: 2026-03-20
 
 ---
 
@@ -12,19 +12,19 @@
 
 **Receita média real por venda:**
 - Produto principal: R$ 173,43
-- Order bumps: 4 bumps × ticket médio R$ 36 × taxa de conversão 30% = R$ 10,80
-- **Receita média total por venda: R$ 184,23**
+- Order bumps: 3 bumps × ticket médio R$ 31,93 × taxa de conversão 71% = R$ 22,67
+- **Receita média total por venda: R$ 196,10**
 
 **CPA Targets — tabela de referência obrigatória:**
 
 | Label | ROI | Cálculo | CPA | Interpretação |
 |-------|-----|---------|-----|---------------|
-| CPA ALVO | 2.0x | R$ 184,23 ÷ 2.0 | **R$ 92,12** | Meta ideal — candidato à F3 |
-| CPA BOM | 1.8x | R$ 184,23 ÷ 1.8 | **R$ 102,35** | Aprovado para F2 |
-| CPA LIMITE | 1.5x | R$ 184,23 ÷ 1.5 | **R$ 122,82** | Máximo tolerável — monitorar |
-| CPA CORTE | 1.2x | R$ 184,23 ÷ 1.2 | **R$ 153,53** | Pausar imediatamente se sem venda em 2 dias |
+| CPA ALVO | 2.0x | R$ 196,10 ÷ 2.0 | **R$ 98,05** | Meta ideal — candidato à F3 |
+| CPA BOM | 1.8x | R$ 196,10 ÷ 1.8 | **R$ 108,94** | Aprovado para F2 |
+| CPA LIMITE | 1.5x | R$ 196,10 ÷ 1.5 | **R$ 130,73** | Máximo tolerável — monitorar |
+| CPA CORTE | 1.2x | R$ 196,10 ÷ 1.2 | **R$ 163,42** | Pausar imediatamente se sem venda em 2 dias |
 
-> ⚠️ NUNCA usar o ticket bruto (R$ 197) como base de CPA. Sempre usar R$ 184,23.
+> ⚠️ NUNCA usar o ticket bruto como base de CPA. Sempre usar R$ 196,10.
 
 **ROAS mínimo aceitável:** 2.0x
 **Moeda:** BRL
@@ -53,10 +53,10 @@ F1 LABORATÓRIO → Criativos Aprovados → F2 ARENA → Campeões → F3 ESCALA
 - Escala gradual de orçamento dentro da F1 se CPA se aproximar do ALVO antes dos 7 dias
 
 **Regra de corte F1:**
-- ⛔ CPA acima de R$ 153,53 + zero venda em 2 dias = PAUSAR imediatamente
+- ⛔ CPA acima de R$ 163,42 + zero venda em 2 dias = PAUSAR imediatamente
 
 **Critério de aprovação para F2:**
-- CPA ≤ R$ 102,35 (BOM ou ALVO)
+- CPA ≤ R$ 108,94 (BOM ou ALVO)
 - Pelo menos 1–2 vendas no período de teste
 - Performance sustentada por 2 dias consecutivos
 
@@ -88,10 +88,10 @@ A campanha F2 se mantém viva e se renova continuamente
 ```
 
 **Regra de corte F2:**
-- ⛔ CPA acima de R$ 153,53 + zero venda em 2 dias = PAUSAR o criativo
+- ⛔ CPA acima de R$ 163,42 + zero venda em 2 dias = PAUSAR o criativo
 
 **Critério de promoção para F3:**
-- CPA sustentado no nível ALVO (R$ 92,12) por múltiplos dias consecutivos
+- CPA sustentado no nível ALVO (R$ 98,05) por múltiplos dias consecutivos
 - Volume de vendas consistente — não apenas CPA isolado
 
 ---
@@ -106,7 +106,7 @@ A campanha F2 se mantém viva e se renova continuamente
 **Regras de operação F3:**
 - 🔒 Janela de 7 dias para orçamento é RÍGIDA — nenhum ajuste antes de 7 dias completos
 - Pausas de criativo são PERMITIDAS a qualquer momento
-- ⛔ Criativo com CPA acima de R$ 153,53 por 2 dias consecutivos = PAUSAR o criativo
+- ⛔ Criativo com CPA acima de R$ 163,42 por 2 dias consecutivos = PAUSAR o criativo
 - Se maioria dos criativos acima do LIMITE = revisar conjunto antes de mexer no orçamento
 
 **Critério de entrada na F3:**
@@ -115,7 +115,7 @@ A campanha F2 se mantém viva e se renova continuamente
 - Volume de vendas suficiente para justificar escala elevada
 
 **Critério de saída/pausa da F3:**
-- CPA acima de R$ 153,53 por mais de 2 dias consecutivos
+- CPA acima de R$ 163,42 por mais de 2 dias consecutivos
 
 ---
 
@@ -123,15 +123,15 @@ A campanha F2 se mantém viva e se renova continuamente
 
 | Métrica | Threshold | Ação |
 |---------|-----------|------|
-| CPA ALVO | ≤ R$ 92,12 | Candidato à F3 |
-| CPA BOM | ≤ R$ 102,35 | Aprovado para F2 |
-| CPA LIMITE | ≤ R$ 122,82 | Monitorar — máximo tolerável |
-| CPA CORTE | > R$ 153,53 + 0 vendas em 2 dias | Pausar imediatamente |
+| CPA ALVO | ≤ R$ 98,05 | Candidato à F3 |
+| CPA BOM | ≤ R$ 108,94 | Aprovado para F2 |
+| CPA LIMITE | ≤ R$ 130,73 | Monitorar — máximo tolerável |
+| CPA CORTE | > R$ 163,42 + 0 vendas em 2 dias | Pausar imediatamente |
 | ROAS mínimo | < 2.0x | Alerta crítico |
 | CTR baixo | < 0.5% | Alerta — revisar criativo |
 | Frequência | > 3.0x | Alerta — saturação de audiência |
 | Frequência F3 | > 2.5x | Alerta antecipado — renovar público |
-| Spend sem resultado | > R$ 184,23 sem venda | Avaliar pausa |
+| Spend sem resultado | > R$ 196,10 sem venda | Avaliar pausa |
 
 ---
 
@@ -158,8 +158,8 @@ Ao analisar dados, identificar a fase de cada campanha pelo prefixo no nome:
 | Dia | Ação |
 |-----|------|
 | Segunda | Alocar 10 criativos F1 · Verificar criativos ativos na F2 · Checar janela F3 |
-| Quarta | Verificar F1: CPA > R$153,53 + sem venda em 2 dias? Pausar · Checar budget F2 |
-| Sexta/Sáb | Fechar leitura F1 · Alocar aprovados (CPA ≤ R$102,35) na F2 · Identificar candidatos à F3 (CPA ≤ R$92,12 por múltiplos dias) |
+| Quarta | Verificar F1: CPA > R$163,42 + sem venda em 2 dias? Pausar · Checar budget F2 |
+| Sexta/Sáb | Fechar leitura F1 · Alocar aprovados (CPA ≤ R$108,94) na F2 · Identificar candidatos à F3 (CPA ≤ R$98,05 por múltiplos dias) |
 | Mensal | Compilar campeões das semanas · Montar nova F3 · Encerrar F3 anterior · Ajustar budget com base em ROAS + CPA do mês |
 
 ---
@@ -172,7 +172,7 @@ Ao analisar dados, identificar a fase de cada campanha pelo prefixo no nome:
 2. **Usar os CPAs corretos** da tabela da Seção 1 — nunca usar R$ 197 como referência
 3. **Considerar a idade da campanha:**
    - F1 com < 3 dias: não tomar decisão de corte ainda — apenas monitorar CPM
-   - F1 com 2–3 dias: corte se CPA > R$153,53 + zero venda
+   - F1 com 2–3 dias: corte se CPA > R$163,42 + zero venda
    - F1 com 4–7 dias: janela de leitura — observar sem mexer em orçamento
    - F2/F3 recém-ajustadas (< 7 dias do último ajuste): não avaliar orçamento
 4. **Separar análise de frio vs quente:** campanhas `[F]` e campanhas `[Q]/RMKT` têm benchmarks diferentes
@@ -190,7 +190,7 @@ Ao analisar dados, identificar a fase de cada campanha pelo prefixo no nome:
 
 ### Campo `rules_applied` no JSON de análise deve incluir:
 - `funil-f1-f2-f3`
-- `cpa-targets-r184`
+- `cpa-targets-r196`
 - `janela-7-dias-orcamento`
 - `frio-vs-quente`
 - Qualquer regra específica aplicada
@@ -402,7 +402,7 @@ Exemplo: LVC parou em ~09/03/2026.
 | Coluna `Faturamento` do `diario_lvc/teus.csv` | Dado agregado menos preciso — sempre preferir vendas_*.csv |
 | `vendas_acelerador_comercial.csv` | Serviço com %, fora da operação |
 | `vendas_upsell_acelerador.csv` | Idem |
-| Ticket médio R$ 184,23 como multiplicador | Apenas para CPA targets — nunca para calcular receita real |
+| Ticket médio R$ 196,10 como multiplicador | Apenas para CPA targets — nunca para calcular receita real |
 
 ---
 
@@ -414,7 +414,7 @@ Exemplo: LVC parou em ~09/03/2026.
 ### Regras obrigatórias de cálculo:
 
 1. **Faturamento real:** somar VALOR PAGO de cada linha das vendas_*.csv individualmente. Nunca estimar, nunca multiplicar por ticket médio.
-2. **Ticket médio R$ 184,23:** uso exclusivo para cálculo de metas de CPA (tabela Seção 1). Proibido usá-lo como multiplicador de receita.
+2. **Ticket médio R$ 196,10:** uso exclusivo para cálculo de metas de CPA (tabela Seção 1). Proibido usá-lo como multiplicador de receita.
 3. **Verificação obrigatória:** após somar qualquer série de valores, refazer a soma antes de publicar. Se houver dúvida, somar uma terceira vez.
 4. **Sem arredondamentos não declarados:** se arredondar, indicar explicitamente. Apresentar valores com centavos quando os dados os contêm.
 5. **Campanhas ativas (março/2026):** MDA + TEUS. LVC **sem investimento em anúncios**, mas faz parte da esteira — receitas LVC (orgânico, assinatura, remarketing residual) **CONTAM no faturamento total**. Gasto de anúncios = apenas MDA + TEUS.
@@ -444,4 +444,4 @@ Exemplo: LVC parou em ~09/03/2026.
 ---
 
 *@analyst lê este arquivo antes de toda análise — alterações têm efeito imediato na próxima execução.*
-*Synkra AIOS — Meta Ads Intelligence · Atualizado em 2026-03-18*
+*Synkra AIOS — Meta Ads Intelligence · Atualizado em 2026-03-20*

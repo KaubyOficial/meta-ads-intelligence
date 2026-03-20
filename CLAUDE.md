@@ -177,7 +177,7 @@ For data collection tasks, use **@dev**.
 > Sempre usar dados mais recentes em `data/sheets/`.
 > Se desatualizados (> 1 dia): avisar e oferecer `*collect` primeiro.
 > Sempre cruzar `diario_*` + `ads_*` + `reembolsos`. Nunca inventar números.
-> Ticket médio fixo: R$ 184,23. CPA Alvo R$92,12 | Bom R$102,35 | Limite R$122,82 | Corte R$153,53.
+> Ticket médio fixo: R$ 196,10. CPA Alvo R$98,05 | Bom R$108,94 | Limite R$130,73 | Corte R$163,42.
 
 ---
 
