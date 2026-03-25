@@ -33,10 +33,11 @@ import pandas as pd
 # ── Constantes ───────────────────────────────────────────────────────────────
 SHEETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sheets')
 
-CPA_ALVO   = 92.12
-CPA_BOM    = 102.35
-CPA_LIMITE = 122.82
-CPA_CORTE  = 153.53
+# analyst-rules.md Secao 1 — ticket medio R$196,10 (atualizado 2026-03-20)
+CPA_ALVO   = 98.05   # ROI 2.0x
+CPA_BOM    = 108.94  # ROI 1.8x
+CPA_LIMITE = 130.73  # ROI 1.5x
+CPA_CORTE  = 163.42  # ROI 1.2x
 
 STATUS_VALIDO = ['APPROVED', 'COMPLETE']
 
@@ -58,12 +59,28 @@ def match_produto_principal(produto_serie, produto_key):
 # ── Data files ───────────────────────────────────────────────────────────────
 
 def latest_date_label(sheets_dir=None):
-    """Retorna o date_label mais recente disponível em data/sheets/."""
+    """
+    Retorna o date_label mais recente disponivel em data/sheets/.
+    Prefere labels no formato ISO (YYYY-MM-DD) em vez de 'hoje' ou outros aliases,
+    pois aliases podem estar desatualizados em relacao aos arquivos com data explicita.
+    """
+    from datetime import datetime
     d = sheets_dir or SHEETS_DIR
     files = glob.glob(os.path.join(d, '*_diario_mda.csv'))
     if not files:
         return None
     labels = [os.path.basename(f).split('_')[0] for f in files]
+    # Separar labels ISO (YYYY-MM-DD) dos aliases (hoje, etc.)
+    iso_labels = []
+    for lbl in labels:
+        try:
+            datetime.strptime(lbl, '%Y-%m-%d')
+            iso_labels.append(lbl)
+        except ValueError:
+            pass
+    # Preferir o label ISO mais recente; fallback para qualquer label
+    if iso_labels:
+        return sorted(iso_labels)[-1]
     return sorted(labels)[-1]
 
 def sheets_path(alias, date_label=None, sheets_dir=None):
@@ -205,36 +222,111 @@ def load_vendas(produto, date_label=None, year=2026, month=3,
     return df[[c for c in keep if c in df.columns]].copy()
 
 
-def load_ads(produto, date_label=None, year=2026, month=3):
+def load_ads(produto, date_label=None, year=2026, month=3,
+             exclude_partial_days=True, d_ini=None, d_fim=None):
     """
     Carrega ads_{produto}.csv.
-    USA coluna DATA (planilha), não 'date' (Meta API).
-    Agrega por NOME ADS: GASTO, COMPRAS, IMPRESSOES, CLIQUES, DIAS_ATIVO
+
+    Estrategia de colunas (auto-detecta qual tem dados para o periodo):
+    - Data:    'date' (Meta API, YYYY-MM-DD) — sempre populada
+               fallback: 'DATA' (planilha) — so ate dez/2025
+    - Nome:    'Ad Name' (Meta API) se 'NOME ADS' vazia no periodo
+    - Gasto:   'Spend (Cost, Amount Spent)' (Meta API) se 'GASTO' vazia
+    - Compras: 'Action Omni Purchase' (Meta API) se 'COMPRAS' planilha vazia
+               IMPORTANTE: pixel Meta e a fonte correta para ranking de criativos
+
+    exclude_partial_days: exclui o dia mais recente se gasto < 20% da media diaria
+                          (evita distorcao por dia incompleto na hora da coleta)
+
+    d_ini / d_fim: filtro de periodo customizado (pd.Timestamp). Se None, usa year/month.
     """
     path = sheets_path(f'ads_{produto}', date_label)
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
 
-    # Usar coluna DATA da planilha (YYYY-MM-DD), não 'date' da Meta API
-    df['DATA_DT'] = parse_date_ads(df['DATA'])
-    df = filter_period(df, 'DATA_DT', year, month)
+    # ── Data: usar 'date' (Meta API) como primaria ──────────────
+    if 'date' in df.columns:
+        df['DATA_DT'] = pd.to_datetime(df['date'].astype(str).str.strip(), errors='coerce')
+    elif 'DATA' in df.columns:
+        df['DATA_DT'] = parse_date_ads(df['DATA'])
+    else:
+        return pd.DataFrame(columns=['AD_NAME', 'PRODUTO', 'GASTO', 'COMPRAS',
+                                     'IMPRESSOES', 'CLIQUES', 'VPG', 'DIAS_ATIVO'])
+
+    # ── Filtro de periodo ────────────────────────────────────────
+    if d_ini is not None and d_fim is not None:
+        df = df[(df['DATA_DT'] >= d_ini) & (df['DATA_DT'] <= d_fim)].copy()
+    else:
+        df = filter_period(df, 'DATA_DT', year, month)
 
     if df.empty:
-        return pd.DataFrame(columns=['NOME ADS', 'PRODUTO', 'GASTO', 'COMPRAS', 'IMPRESSOES', 'CLIQUES', 'DIAS_ATIVO'])
+        return pd.DataFrame(columns=['AD_NAME', 'PRODUTO', 'GASTO', 'COMPRAS',
+                                     'IMPRESSOES', 'CLIQUES', 'VPG', 'DIAS_ATIVO'])
 
-    df['GASTO_N']     = df['GASTO'].apply(br_num)
-    df['COMPRAS_N']   = pd.to_numeric(df['COMPRAS'], errors='coerce').fillna(0)
-    # Impressões podem estar em várias colunas e formatos
-    imp_col = next((c for c in df.columns if 'IMPRESS' in c.upper() and '2' not in c), None)
-    df['IMPRESSOES_N'] = df[imp_col].apply(parse_impressoes) if imp_col else 0
-    cli_col = next((c for c in df.columns if 'CLIQU' in c.upper() and '2' not in c), None)
-    df['CLIQUES_N']   = pd.to_numeric(df[cli_col], errors='coerce').fillna(0) if cli_col else 0
+    # ── Excluir dia parcial (hoje com dados incompletos) ─────────
+    if exclude_partial_days and len(df['DATA_DT'].dropna().unique()) > 1:
+        daily_spend_api = (
+            df.assign(_s=pd.to_numeric(
+                df['Spend (Cost, Amount Spent)'].astype(str).str.replace(',', '.'),
+                errors='coerce').fillna(0))
+            .groupby('DATA_DT')['_s'].sum()
+        )
+        media = daily_spend_api[:-1].mean()  # media excluindo o ultimo dia
+        ultimo_dia = daily_spend_api.index.max()
+        if media > 0 and daily_spend_api[ultimo_dia] < media * 0.20:
+            df = df[df['DATA_DT'] < ultimo_dia].copy()
 
-    agg = df.groupby('NOME ADS').agg(
+    if df.empty:
+        return pd.DataFrame(columns=['AD_NAME', 'PRODUTO', 'GASTO', 'COMPRAS',
+                                     'IMPRESSOES', 'CLIQUES', 'VPG', 'DIAS_ATIVO'])
+
+    # ── Nome do anuncio ─────────────────────────────────────────
+    # Preferir 'NOME ADS' (planilha) quando preenchida; senao 'Ad Name' (Meta API)
+    if 'NOME ADS' in df.columns and 'Ad Name' in df.columns:
+        df['AD_NAME'] = df['NOME ADS'].where(
+            df['NOME ADS'].notna() & (df['NOME ADS'].str.strip() != ''),
+            df['Ad Name']
+        )
+    elif 'Ad Name' in df.columns:
+        df['AD_NAME'] = df['Ad Name']
+    else:
+        df['AD_NAME'] = df.get('NOME ADS', 'DESCONHECIDO')
+
+    # ── Gasto ───────────────────────────────────────────────────
+    # Planilha (GASTO) so tem dados ate dez/2025. Para datas mais recentes,
+    # usar 'Spend (Cost, Amount Spent)' da Meta API.
+    gasto_planilha = df['GASTO'].apply(br_num) if 'GASTO' in df.columns else pd.Series(0.0, index=df.index)
+    gasto_api = pd.to_numeric(
+        df['Spend (Cost, Amount Spent)'].astype(str).str.replace(',', '.'),
+        errors='coerce').fillna(0.0) if 'Spend (Cost, Amount Spent)' in df.columns else pd.Series(0.0, index=df.index)
+    # Usar planilha quando preenchida, senao API
+    df['GASTO_N'] = gasto_planilha.where(gasto_planilha > 0, gasto_api)
+
+    # ── Compras ─────────────────────────────────────────────────
+    # 'COMPRAS' planilha so tem dados ate dez/2025.
+    # 'Action Omni Purchase' (Meta API) e a fonte correta para ranking de criativos.
+    compras_planilha = pd.to_numeric(df['COMPRAS'], errors='coerce').fillna(0) if 'COMPRAS' in df.columns else pd.Series(0.0, index=df.index)
+    compras_api = pd.to_numeric(df['Action Omni Purchase'], errors='coerce').fillna(0) if 'Action Omni Purchase' in df.columns else pd.Series(0.0, index=df.index)
+    df['COMPRAS_N'] = compras_planilha.where(compras_planilha > 0, compras_api)
+
+    # ── Impressoes / Cliques / VPG ──────────────────────────────
+    def _col_or_api(planilha_kw, api_col):
+        pl = next((c for c in df.columns if planilha_kw.upper() in c.upper()
+                   and '2' not in c and c != api_col), None)
+        pl_s = pd.to_numeric(df[pl], errors='coerce').fillna(0) if pl else pd.Series(0.0, index=df.index)
+        api_s = pd.to_numeric(df[api_col], errors='coerce').fillna(0) if api_col in df.columns else pd.Series(0.0, index=df.index)
+        return pl_s.where(pl_s > 0, api_s)
+
+    df['IMPRESSOES_N'] = _col_or_api('IMPRESS', 'Impressions')
+    df['CLIQUES_N']    = _col_or_api('CLIQU', 'Inline Link Clicks')
+    df['VPG_N']        = _col_or_api('VPG', 'Action Landing Page View')
+
+    agg = df.groupby('AD_NAME').agg(
         GASTO=('GASTO_N', 'sum'),
         COMPRAS=('COMPRAS_N', 'sum'),
         IMPRESSOES=('IMPRESSOES_N', 'sum'),
         CLIQUES=('CLIQUES_N', 'sum'),
+        VPG=('VPG_N', 'sum'),
         DIAS_ATIVO=('DATA_DT', 'nunique')
     ).reset_index()
     agg['PRODUTO'] = produto.upper()
