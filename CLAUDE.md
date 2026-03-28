@@ -234,7 +234,7 @@ Exemplos de ativação:
 *criativos   │ Ranking completo de criativos por CPA — ALVO / BOM / LIMITE / CORTE / PAUSAR
 *vsl         │ VSL A vs VSL B vs VSL C por produto — qual roteiro está ganhando
 *reembolsos  │ Reembolsos por produto + por criativo via UTM + tendência diária
-*checkout    │ Taxa de checkout por produto vs benchmarks históricos
+*checkout    │ Funil VPV -> IC -> Venda por produto com taxas e alertas automáticos
 *fadiga      │ Criativos com frequência alta (>2.5x F3 / >3.0x F2) — risco de saturação
 ```
 
@@ -254,9 +254,10 @@ Exemplos de ativação:
 ### VISÃO FINANCEIRA — rentabilidade real com reembolsos
 
 ```
-*pl          │ P&L completo — receita bruta, reembolsos discriminados, lucro líquido
-*mes         │ Performance do mês atual consolidada por produto
+*pl          │ P&L com receita REAL (VALOR PAGO) separando produto principal vs order bumps + reembolsos
 *lucro       │ Lucro líquido real do período (alias de *pl)
+*origem      │ Vendas por canal de origem: Facebook / Bio / Hotmart / Manychat / Comercial / Direto
+*mes         │ Performance do mês atual consolidada por produto
 *roi MDA     │ ROI isolado de um produto específico com análise detalhada
 *budget      │ Distribuição do gasto entre F1/F2/F3/RMKT em % — quick_status.py --mode budget
 ```
@@ -270,6 +271,13 @@ Exemplos de ativação:
 "como distribuir o budget?"            → *budget
 "qual produto tá mais lucrativo?"      → *pl
 "quanto perdi com reembolso?"          → *reembolsos + *pl
+"quanto veio de orderbump?"            → *pl
+"separa produto principal de bump"     → *pl
+"de onde vêm as vendas?"              → *origem
+"quanto vem do Facebook vs Hotmart?"  → *origem
+"por que o checkout caiu?"            → *checkout
+"qual a taxa IC->Venda?"              → *checkout
+"qual a conversão do funil?"          → *checkout
 ```
 
 ---

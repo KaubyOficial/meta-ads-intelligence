@@ -396,7 +396,8 @@ Exemplo: LVC parou em ~09/03/2026.
 | `*funil` / `*f1` / `*f2` / `*f3` / `*mover` | ads_*.csv por campanha | vendas_*.csv por UTM_CAMPAIGN | ads_*.csv | — |
 | `*vsl` | ads_*.csv filtrado por VSL no Ad Name | vendas_*.csv UTM_CONTENT | ads_*.csv | reembolsos.csv |
 | `*reembolsos` | — | vendas_*.csv (para calcular taxa) | — | reembolsos.csv UTM cruzado |
-| `*checkout` | diario_*.csv | vendas_*.csv | — | — |
+| `*checkout` | diario_*.csv (VPV, IC, Vendas) | — | — | — |
+| `*origem` | — | vendas_*.csv (UTM_SOURCE) | — | — |
 | `*comparar` | diario_*.csv semanas | vendas_*.csv semanas | — | reembolsos.csv |
 | `*benchmarks` | diario_*.csv | vendas_*.csv | ads_*.csv | — |
 | `*workflow` | todos | todos | todos | todos |
