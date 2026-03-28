@@ -2,7 +2,7 @@
 
 > Este arquivo é lido por @analyst ANTES de toda análise.
 > As regras aqui definidas SUBSTITUEM todos os defaults do sistema.
-> Última atualização: 2026-03-20
+> Última atualização: 2026-03-28
 
 ---
 
@@ -227,6 +227,17 @@ Ao analisar dados, identificar a fase de cada campanha pelo prefixo no nome:
 | `config/analyst-rules.md` | SEMPRE — antes de qualquer análise |
 | `config/account-benchmarks.md` | SEMPRE — para comparação histórica e benchmarks de checkout/ROAS |
 
+### Base de Conhecimento Oficial Meta (docs/meta-knowledge/)
+
+| Arquivo | Consultar quando |
+|---------|-----------------|
+| `meta-02-campaign-structure.md` | Dúvida sobre estrutura CBO/ABO, objetivos, leilão, Learning Phase |
+| `meta-03-audience-targeting.md` | Avaliar qualidade de audiência, recomendar tipo de segmentação |
+| `meta-04-advantage-plus.md` | Analisar campanhas ASC ou Advantage+; recomendar migração |
+| `meta-05-bidding-attribution.md` | Interpretar ROAS/CPA por janela de atribuição; avaliar estratégia de lance |
+
+> Estes arquivos são a base oficial Meta. Usá-los para fundamentar recomendações que vão além das regras deste arquivo.
+
 ---
 
 ## 10. ROTA DEFINITIVA DE DADOS — Fontes por Métrica e Comando
@@ -443,5 +454,220 @@ Exemplo: LVC parou em ~09/03/2026.
 
 ---
 
+---
+
+## 12. Regras de Avaliação — Campanhas Advantage+ (ASC)
+
+> Ref: `docs/meta-knowledge/meta-04-advantage-plus.md`
+
+Campanhas com prefixo `ASC` são **Advantage+ Shopping Campaigns** — estrutura totalmente automatizada da Meta. Não seguem as regras F1/F2/F3 padrão.
+
+### Estrutura esperada de uma campanha ASC
+- 1 campanha / sem segmentação manual de audiência / placements automáticos
+- Limite: 150 ads ativos por campanha ASC
+- Meta gerencia targeting, placements e lances — o anunciante define apenas orçamento e criativos
+
+### Critérios de avaliação ASC (diferentes do funil manual)
+
+| Critério | Threshold | Interpretação |
+|----------|-----------|---------------|
+| ROAS mínimo | ≥ 2.0x (mesmo que manual) | Base da conta — não muda |
+| CPA referência | R$ 98,05 a R$ 130,73 | Mesmos targets — mas esperar maior volatilidade diária |
+| Período mínimo de leitura | **14 dias** | ASC precisa de mais dados para estabilizar — não tomar decisão em < 14 dias |
+| Conversões mínimas para rodar bem | **50 compras/semana na conta** | Abaixo disso, ASC tem dificuldade de sair do Learning Limited |
+| Frequência | Não aplicar threshold de F2/F3 | ASC gerencia audiência automaticamente — frequência alta pode ser intencional |
+
+### ⚠️ Achado crítico (2025): ASC vs custo de novo cliente
+- ASC mostra **ROAS superior** às campanhas manuais em análises superficiais
+- Porém análise de 55.661 campanhas (2025) mostrou que o **nCAC dobrou** com ASC ($257 → $528) vs campanhas manuais
+- **Estratégia recomendada:** ASC para remarketing e bottom-of-funnel; campanhas manuais (F1/F2/F3) para aquisição de novos clientes (topo de funil)
+
+### Alertas específicos para ASC
+- 🔴 ROAS ASC < 2.0x por 14 dias = revisão crítica de criativos e orçamento
+- 🟡 ASC com orçamento < R$ 500/dia = pode não ter dados suficientes para otimizar
+- 🟡 Se a conta tem < 50 compras/semana total: ASC provavelmente em Learning Limited permanente — considerar consolidar em campanhas manuais
+- 🟢 ASC com ROAS > 3.0x sustentado por 14 dias = manter e priorizar renovação de criativos
+
+### O que NOT fazer com ASC
+- ❌ Não pausar e reativar ASC frequentemente — reseta otimização
+- ❌ Não criar múltiplas ASC concorrentes no mesmo produto — canibalização
+- ❌ Não avaliar ASC pelos primeiros 7 dias — dar pelo menos 14 dias de dados
+
+---
+
+## 13. Learning Phase — Consciência e Impacto no F1
+
+> Ref: `docs/meta-knowledge/meta-02-campaign-structure.md` — Seção Learning Phase
+
+### O que é a Learning Phase
+A Meta requer **mínimo de ~50 eventos de otimização por semana por ad set** para que o algoritmo saia da fase de aprendizado. Durante a fase, a entrega é instável e o CPA pode ser artificialmente alto.
+
+### Impacto direto no F1 desta conta
+
+| Configuração F1 | Cálculo | Resultado |
+|----------------|---------|-----------|
+| Orçamento F1 | R$ 50/dia por conjunto | R$ 350/semana por conjunto |
+| CPA alvo | R$ 98,05 | ~3.6 compras/semana |
+| CPA limite | R$ 163,42 | ~2.1 compras/semana |
+| Meta exige para sair do Learning | 50 compras/semana | — |
+
+**Conclusão:** Ad sets F1 a R$50/dia **nunca** atingem as 50 conversões/semana necessárias. Isso significa que **F1 opera permanentemente em "Learning Limited"** — o que é esperado e intencional para um laboratório de testes criativos de baixo custo.
+
+### Regras de adaptação para Learning Limited em F1
+
+1. **Não interpretar CPA alto nos primeiros 3 dias como falha** — pode ser instabilidade de learning
+2. **O objetivo do F1 não é sair do Learning** — é identificar quais criativos têm sinal positivo mesmo com aprendizado limitado
+3. **Corte antecipado permitido (dia 2-3):** se CPA > R$163,42 + zero venda = PAUSAR mesmo em learning (regra existente mantida)
+4. **Sinais válidos mesmo em Learning Limited:**
+   - CTR acima de 0.8% nos primeiros 2 dias = sinal criativo forte
+   - VPV (visualizações de página de vendas) alto = funil chegando na página
+   - 1+ venda com CPA ≤ R$163,42 = manter e aguardar a janela completa
+5. **Ao promover para F2:** o criativo vai enfrentar novo mini-learning (1-2 dias) dentro da F2 CBO — comportamento esperado, mencionado na Seção 2
+
+### Quando a Learning Phase é atingida na conta
+F2 e F3 com CBO em R$500–1.500/dia e histórico de vendas têm chance real de sair do Learning. Meta avalia o **ad set inteiro** para o cálculo de 50 events/semana — em CBO, os criativos compartilham o aprendizado do conjunto.
+
+---
+
+## 14. Janela de Atribuição — Definição e Interpretação
+
+> Ref: `docs/meta-knowledge/meta-05-bidding-attribution.md` — Seção 3
+
+### Janela padrão desta conta
+
+**Janela primária:** 7-day click (padrão Meta para campanhas de Sales/Conversions)
+
+> ⚠️ A janela **7-day view foi depreciada pela Meta em 12/01/2026** e não está mais disponível. Não referenciar dados de 7-day view em análises a partir de 2026.
+
+**Janelas disponíveis atualmente:**
+- `1-day click` — conversões que aconteceram até 1 dia após o clique
+- `7-day click` ← **padrão da conta**
+- `1-day view` — conversões 1 dia após ver o anúncio (sem clicar)
+- `1-day engaged view` — para anúncios de vídeo/Reels
+
+### Como a janela impacta os números
+
+| Situação | Impacto no ROAS reportado |
+|----------|--------------------------|
+| Relatório em 7-day click | Inclui compras feitas em até 7 dias após o clique — ROAS mais alto |
+| Relatório em 1-day click | Inclui apenas compras imediatas — ROAS mais baixo, mais conservador |
+| Comparando períodos diferentes | Se a janela mudou entre períodos, os números NÃO são comparáveis diretamente |
+
+### Regras de interpretação por janela
+
+1. **Sempre indicar no relatório qual janela está sendo usada** quando os dados vêm de `data/processed/` ou Meta API
+2. **Dados de `vendas_*.csv` (Google Sheets):** são baseados na data real da venda — não têm janela de atribuição. São a fonte de verdade.
+3. **Divergência entre `vendas_*.csv` e dados do Ads Manager:** normal e esperada — a diferença é a janela de atribuição. O `vendas_*.csv` é sempre a referência para faturamento real.
+4. **Ao comparar ROAS**: se um período usa 7-day click e outro usa 1-day click, avisar explicitamente — não são comparáveis.
+5. **Para relatórios de criativos** (ads_*.csv): os dados já vêm com atribuição do Pixel — subestimam conversões vs fonte real (vendas_*.csv). Usar ads_*.csv para ranking relativo de criativos, nunca para faturamento absoluto.
+
+### Nota sobre atribuição cross-device e iOS 14+
+- Compras feitas em dispositivo diferente do clique podem não ser rastreadas pelo Pixel
+- iOS 14+ (ATT) reduz significativamente o sinal de Pixel em usuários Apple
+- **Por isso `vendas_*.csv` (fonte Hotmart/checkout) é SEMPRE mais preciso que dados do Pixel Meta**
+- A divergência típica é: Pixel Meta reporta 60–80% das vendas reais
+
+---
+
+---
+
+## 16. Audience Intelligence — Qualidade e Saturação de Audiência
+
+> Ref: `docs/meta-knowledge/audience-intelligence-guide.md`
+
+### Detecção de tipo de audiência por nome de campanha
+
+| Padrão no nome | Tipo inferido | CPA esperado |
+|---|---|---|
+| `RMKT` / `[Q]` | Custom Audience (quente) | Baixo — audiência já conhece o produto |
+| `F1` / `[F]` | Tráfego frio (Detailed/Broad) | Alto inicial — fase de aprendizado |
+| `F2` / `F3` | Broad ou Lookalike | Estabiliza com tempo |
+| `ASC` | Advantage+ Audience (IA) | Variável — aguardar 14 dias |
+
+### Alertas de saturação de audiência (detecção via métricas)
+
+Os seguintes sinais nos dados indicam saturação — aplicar ao analisar criativos e campanhas:
+
+| Sinal | Threshold | Ação |
+|-------|-----------|------|
+| Frequência > 3.0x (F2) | 🔴 | Alertar — renovar criativos na F1 com urgência |
+| Frequência > 2.5x (F3) | 🟡 | Alerta antecipado — preparar renovação |
+| CPM subindo > 20% em 7 dias | 🟡 | Investigar saturação de audiência |
+| CTR caindo > 30% em 7 dias | 🟡 | Fadiga de criativo ou saturação |
+| CPM subindo + CTR caindo juntos | 🔴 | Saturação confirmada — renovação urgente |
+
+**Frequência da conta** (de `diario_*.csv`):
+```
+frequencia = impressoes_periodo / alcance_periodo
+```
+
+### Recomendações de tipo de audiência
+
+| Condição | Recomendação |
+|----------|-------------|
+| Conta com ≥ 100 vendas/semana | Recomendar Advantage+ Audience para F2/F3 |
+| Custom Audience compradores ≥ 1.000 pessoas | Recomendar Lookalike 1-3% |
+| Custom Audience < 500 pessoas | Não criar Lookalike — base insuficiente |
+| F1 com múltiplos ad sets sem diferenciação de targeting | Alertar sobreposição — verificar configuração |
+
+### Tamanhos mínimos de audiência
+
+| Fase | Mínimo | Ideal |
+|------|--------|-------|
+| F1 (frio) | 500k | 1M–5M |
+| F2/F3 | 1M | 3M–20M |
+| RMKT | 1.000 pessoas | 10k–500k |
+| Lookalike source | 1.000 eventos | 5k–50k |
+
+> **Esta conta em fev/2026 teve 499–694 vendas/semana** — volume suficiente para Advantage+ Audience funcionar bem e Lookalike de qualidade estar disponível.
+
+---
+
+## 15. Estratégia de Lance — Validação e Recomendações
+
+> Ref: `docs/meta-knowledge/bidding-attribution-guide.md`
+
+### Mapa de bid strategy por fase
+
+| Fase | Bid Strategy recomendada | Evitar |
+|------|--------------------------|--------|
+| F1 — Laboratório | **Lowest Cost** (sem restrição) | Cost Cap, Bid Cap, Minimum ROAS |
+| F2 — Arena | **Lowest Cost** ou **Cost Cap** (se CPA volátil) | Bid Cap muito agressivo |
+| F3 — Escala | **Cost Cap** ou **Lowest Cost** | Minimum ROAS com target > 3.0x |
+| ASC | **Lowest Cost** (gerenciado pelo sistema) | Qualquer restrição manual |
+| RMKT | **Lowest Cost** ou **Minimum ROAS** | Bid Cap |
+
+### Alertas de incompatibilidade de lance
+
+1. **F1 com Cost Cap ou Bid Cap:** alertar — risco de underspend que invalida o teste
+2. **Underspend:** se campanha gastou < 80% do orçamento em 3+ dias = verificar se cap está restritivo
+3. **Underspend severo (< 60%):** alerta crítico — Cost Cap provavelmente abaixo do CPA real
+
+### Quando recomendar Cost Cap
+
+Recomendar Cost Cap quando **todas** as condições forem verdadeiras:
+- CPA volátil (variação > ±30% entre dias) mas dentro do range aceitável
+- Campanha tem ≥ 14 dias de histórico
+- Escala ≥ R$ 500/dia (cada dia fora do range tem custo elevado)
+
+**Configuração sugerida de Cost Cap:**
+- Meta CPA BOM: cap em R$ 115–130
+- Meta CPA LIMITE: cap em R$ 130–150
+- ⚠️ Cap menor que o CPA real histórico = underspend garantido
+
+### Detecção de underspend na análise
+
+```python
+# Underspend estimado
+underspend = (orcamento_configurado * dias) - gasto_real
+taxa_entrega = gasto_real / (orcamento_configurado * dias)
+# taxa_entrega < 0.80 → alerta
+# taxa_entrega < 0.60 → crítico
+```
+
+> Se o dado de orçamento configurado não estiver disponível nos CSVs, reportar o gasto absoluto e alertar se o padrão histórico da fase sugere underspend.
+
+---
+
 *@analyst lê este arquivo antes de toda análise — alterações têm efeito imediato na próxima execução.*
-*Synkra AIOS — Meta Ads Intelligence · Atualizado em 2026-03-20*
+*Synkra AIOS — Meta Ads Intelligence · Atualizado em 2026-03-28*

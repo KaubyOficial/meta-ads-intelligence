@@ -32,9 +32,11 @@
 
 ## Top Campanhas da Semana
 
-| # | Campanha | Spend | ROAS | Resultados | vs Semana Anterior |
-|---|----------|-------|------|------------|-------------------|
+| # | Campanha | Tipo | Spend | ROAS | Resultados | vs Semana Anterior |
+|---|----------|------|-------|------|------------|-------------------|
 {{TOP_CAMPAIGNS_WEEKLY_TABLE}}
+
+> **Legenda de tipo:** `[ASC]` Advantage+ Sales · `[ADV+ AUD]` Advantage+ Audience · `[MANUAL]` F1/F2/F3 manual
 
 ---
 
@@ -59,6 +61,17 @@
 | Anúncio | Frequência | CTR | Tendência | Recomendação |
 |---------|------------|-----|-----------|--------------|
 {{FATIGUED_ADS_TABLE}}
+
+---
+
+## Análise de Audiência da Semana
+
+| Campanha | Tipo | Freq. Média | CPM Médio | CTR Médio | Status Saturação |
+|----------|------|-------------|-----------|-----------|-----------------|
+{{AUDIENCE_WEEKLY_TABLE}}
+
+> **Alertas:** Freq > 3.0x (F2) / > 2.5x (F3) · CPM subindo > 20%/semana · CTR caindo > 30%/semana
+> **Ref:** `docs/meta-knowledge/audience-intelligence-guide.md`
 
 ---
 
@@ -97,6 +110,16 @@
 | Campanha | Budget Semanal | Spend Real | Pacing | Status |
 |----------|---------------|------------|--------|--------|
 {{BUDGET_PACING_TABLE}}
+
+---
+
+## Contexto de Atribuição
+
+- **Janela:** 7-day click (padrão da conta)
+- **Fonte de faturamento:** `vendas_*.csv` (Hotmart) — fonte de verdade
+- **Fonte de CPA por criativo:** `ads_*.csv` — Pixel Meta (subestima ~20-40% das conversões reais)
+- **Nota iOS 14+:** Divergência entre Pixel e faturamento real é esperada e normal.
+- **7-day view:** Depreciada em Jan/2026 — não disponível.
 
 ---
 

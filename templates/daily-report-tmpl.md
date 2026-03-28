@@ -32,17 +32,30 @@
 
 ## Top Campanhas
 
-| Campanha | Spend | ROAS | Resultados | CTR | Status |
-|----------|-------|------|------------|-----|--------|
+| Campanha | Tipo | Spend | ROAS | Resultados | CTR | Status |
+|----------|------|-------|------|------------|-----|--------|
 {{TOP_CAMPAIGNS_TABLE}}
+
+> **Legenda de tipo:** `[ASC]` Advantage+ Sales · `[ADV+ AUD]` Advantage+ Audience · `[MANUAL]` Campanha manual F1/F2/F3
 
 ---
 
 ## Campanhas Críticas — Atenção Necessária
 
-| Campanha | Spend | ROAS | CTR | Problema | Ação Recomendada |
-|----------|-------|------|-----|----------|------------------|
+| Campanha | Tipo | Spend | ROAS | CTR | Problema | Ação Recomendada |
+|----------|------|-------|------|-----|----------|------------------|
 {{BOTTOM_CAMPAIGNS_TABLE}}
+
+---
+
+## Análise de Audiência
+
+| Campanha | Tipo Audiência | Frequência | CPM | CTR | Sinal Saturação |
+|----------|---------------|------------|-----|-----|-----------------|
+{{AUDIENCE_ANALYSIS_TABLE}}
+
+> **Thresholds:** Freq > 3.0x (F2) / > 2.5x (F3) = alerta fadiga · CPM > R$35 = audiência saturando · CTR < 0.5% = revisar hook
+> **Ref:** `docs/meta-knowledge/audience-intelligence-guide.md`
 
 ---
 
@@ -65,6 +78,16 @@
 > Ordenadas por impacto estimado (1 = mais urgente)
 
 {{RECOMMENDATIONS_LIST}}
+
+---
+
+## Contexto de Atribuição
+
+- **Janela:** 7-day click (padrão da conta)
+- **Fonte de faturamento:** `vendas_*.csv` (Hotmart) — fonte de verdade
+- **Fonte de CPA por criativo:** `ads_*.csv` — Pixel Meta (subestima ~20-40% das conversões reais)
+- **Nota iOS 14+:** Divergência entre Pixel e faturamento real é esperada e normal.
+- **7-day view:** Depreciada em Jan/2026 — não disponível.
 
 ---
 

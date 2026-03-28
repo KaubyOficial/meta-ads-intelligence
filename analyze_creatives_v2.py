@@ -20,6 +20,23 @@ def cpa_label(cpa, vendas):
     if cpa <= 163.42: return 'CORTE'
     return 'PAUSAR'
 
+def saturation_signal(cpm, ctr, impressoes):
+    """Detecta sinais de saturação de audiência via métricas do criativo.
+    Ref: docs/meta-knowledge/audience-intelligence-guide.md Seção 4
+    """
+    signals = []
+    if impressoes < 10000:
+        return 'DADOS_INSUF'
+    if cpm > 35:
+        signals.append('CPM_ALTO')
+    if ctr < 0.5:
+        signals.append('CTR_BAIXO')
+    if cpm > 35 and ctr < 0.5:
+        return 'SATURACAO'   # ambos sinais = saturação confirmada
+    if signals:
+        return '|'.join(signals)
+    return 'OK'
+
 # ADS — usar COMPRAS (pixel) para CPA por criativo, IMPRESSOES planilha, CLIQUES planilha
 df_a = pd.read_csv(SHEETS / f'{date_label}_ads_mda.csv', encoding='utf-8')
 df_a['_dt'] = pd.to_datetime(df_a['DATA'].astype(str), errors='coerce')
@@ -53,6 +70,9 @@ ads_g['CPA']  = ads_g.apply(lambda r: r['Gasto']/r['Compras'] if r['Compras']>0 
 ads_g['CTR']  = (ads_g['Cliques'] / ads_g['Impressoes'] * 100).fillna(0)
 ads_g['CPM']  = (ads_g['Gasto'] / ads_g['Impressoes'] * 1000).fillna(0)
 ads_g['STATUS'] = ads_g.apply(lambda r: cpa_label(r['CPA'], r['Compras']), axis=1)
+ads_g['SATURACAO'] = ads_g.apply(
+    lambda r: saturation_signal(r['CPM'], r['CTR'], r['Impressoes']), axis=1
+)
 
 # ROAS estimado: usando ticket médio 196.10 como base para CPA
 # ROAS = ticket / CPA (proxy — real ROAS usa faturamento real)
@@ -61,27 +81,40 @@ ads_g['ROAS_est'] = ads_g.apply(lambda r: 196.10/r['CPA'] if r['CPA']>0 else 0, 
 # Extracto AD number
 ads_g['AD_NUM'] = ads_g['NOME ADS'].apply(lambda x: int(re.match(r'AD(\d+)', str(x)).group(1)) if re.match(r'AD(\d+)', str(x)) else 0)
 
-# Classificacao frio/quente/remarketing via nome
+# Classificacao frio/quente/remarketing/advantage+ via nome
 def tipo_criativo(nome):
     n = str(nome).upper()
-    if 'REMARKETING' in n: return 'RMKT'
+    if 'REMARKETING' in n or '[Q]' in n: return 'RMKT'
+    if 'ASC' in n: return 'ASC'
+    if 'ADV+' in n or 'ADVANTAGE+' in n: return 'ADV+'
     return 'FRIO'
 
+def campaign_type_label(tipo):
+    """Retorna label de exibição para tipo de campanha Advantage+"""
+    labels = {
+        'ASC':  '[ASC]',
+        'ADV+': '[ADV+ AUD]',
+        'RMKT': '[RMKT]',
+        'FRIO': '[MANUAL]',
+    }
+    return labels.get(tipo, '[MANUAL]')
+
 ads_g['TIPO'] = ads_g['NOME ADS'].apply(tipo_criativo)
+ads_g['TIPO_LABEL'] = ads_g['TIPO'].apply(campaign_type_label)
 
 # RANKING completo
 top = ads_g.sort_values('Gasto', ascending=False)
 
-print('=' * 110)
+print('=' * 120)
 print('  RANKING CRIATIVOS MDA (CORRETO) | Fonte: COMPRAS pixel | 2025-10-01 a 2026-03-26')
-print('=' * 110)
-print(f"{'AD':<8} {'Gasto':>11} {'Dias':>5} {'Compras':>8} {'CPA':>9} {'ROAS':>6} {'CTR':>6} {'VPG':>8}  Status   Tipo")
-print('-' * 110)
+print('=' * 120)
+print(f"{'AD':<8} {'Gasto':>11} {'Dias':>5} {'Compras':>8} {'CPA':>9} {'ROAS':>6} {'CTR':>6} {'VPG':>8}  Status     TipoCampanha")
+print('-' * 120)
 for _, r in top.head(40).iterrows():
     ad = f"AD{int(r['AD_NUM'])}"
     cpa_s = f"R${r['CPA']:>7,.2f}" if r['Compras']>0 else '    N/A  '
     roas_s = f"{r['ROAS_est']:>5.2f}x" if r['CPA']>0 else '  N/A '
-    print(f"{ad:<8} R${r['Gasto']:>9,.2f} {int(r['Dias']):>5} {int(r['Compras']):>8,} {cpa_s} {roas_s} {r['CTR']:>5.2f}% {int(r['VPG']):>8,}  {r['STATUS']:<10} {r['TIPO']}")
+    print(f"{ad:<8} R${r['Gasto']:>9,.2f} {int(r['Dias']):>5} {int(r['Compras']):>8,} {cpa_s} {roas_s} {r['CTR']:>5.2f}% {int(r['VPG']):>8,}  {r['STATUS']:<10} {r['TIPO_LABEL']}")
 
 print()
 print('POR STATUS:')
@@ -92,6 +125,17 @@ for st in ['ALVO','BOM','LIMITE','CORTE','PAUSAR','SEM_VENDA']:
     g=ds['Gasto'].sum(); v=ds['Compras'].sum(); n=len(ds)
     pct_g = g/total_gasto*100
     print(f"  [{st:<10}] {n:>3} criat | Gasto R${g:>9,.0f} ({pct_g:>5.1f}%) | Compras pixel {v:>6,}")
+
+print()
+print('POR TIPO DE CAMPANHA (Advantage+ vs Manual):')
+for tp in ['[ASC]', '[ADV+ AUD]', '[MANUAL]', '[RMKT]']:
+    dt = ads_g[ads_g['TIPO_LABEL'] == tp]
+    if len(dt) == 0: continue
+    g = dt['Gasto'].sum(); v = dt['Compras'].sum()
+    cpa_tp = g/v if v > 0 else 0
+    pct = g/total_gasto*100
+    cpa_s = f"R${cpa_tp:,.2f}" if v > 0 else 'N/A'
+    print(f"  {tp:<14} {len(dt):>3} criat | Gasto R${g:>9,.0f} ({pct:>5.1f}%) | Compras {v:>5,} | CPA médio {cpa_s}")
 
 print()
 print('TOP 10 MELHORES CPA (min 10 compras, sem Copia):')
@@ -111,6 +155,22 @@ for _, r in worst.iterrows():
     print(f"  {ad:<8} CPA {cpa_s:<12} | ROAS_est {r['ROAS_est']:.2f}x | Gasto R${r['Gasto']:>8,.0f} | {int(r['Compras']):>4} compras | {hook}")
 
 print()
+print('ALERTAS DE AUDIÊNCIA / SATURAÇÃO:')
+saturados = ads_g[ads_g['SATURACAO'] == 'SATURACAO']
+cpm_alto   = ads_g[ads_g['SATURACAO'] == 'CPM_ALTO']
+ctr_baixo  = ads_g[ads_g['SATURACAO'] == 'CTR_BAIXO']
+if len(saturados):
+    print(f"  🔴 SATURAÇÃO CONFIRMADA (CPM alto + CTR baixo): {len(saturados)} criativos")
+    for _, r in saturados.iterrows():
+        print(f"     AD{int(r['AD_NUM']):<4} CPM R${r['CPM']:,.2f} | CTR {r['CTR']:.2f}% | {r['TIPO_LABEL']}")
+if len(cpm_alto):
+    print(f"  🟡 CPM ALTO (> R$35): {len(cpm_alto)} criativos — possível saturação de audiência")
+if len(ctr_baixo):
+    print(f"  🟡 CTR BAIXO (< 0.5%): {len(ctr_baixo)} criativos — revisar hook ou audiência")
+if not len(saturados) and not len(cpm_alto) and not len(ctr_baixo):
+    print("  ✅ Sem sinais críticos de saturação de audiência")
+
+print()
 print('SUMMARY:')
 print(f"  Total criativos MDA ativos: {len(ads_g)}")
 print(f"  Total gasto ads:    R${ads_g['Gasto'].sum():,.2f}")
@@ -128,6 +188,7 @@ for _, r in ads_g.sort_values('Gasto', ascending=False).iterrows():
         'ad': f"AD{int(r['AD_NUM'])}",
         'nome': r['NOME ADS'],
         'tipo': r['TIPO'],
+        'tipo_label': r['TIPO_LABEL'],
         'gasto': round(float(r['Gasto']),2),
         'dias': int(r['Dias']),
         'compras_pixel': int(r['Compras']),
@@ -135,7 +196,8 @@ for _, r in ads_g.sort_values('Gasto', ascending=False).iterrows():
         'roas_est': round(float(r['ROAS_est']),4),
         'ctr': round(float(r['CTR']),2),
         'vpg': int(r['VPG']),
-        'status': r['STATUS']
+        'status': r['STATUS'],
+        'saturacao': r['SATURACAO']
     })
 
 por_status = {}
