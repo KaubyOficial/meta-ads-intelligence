@@ -472,7 +472,7 @@ Campanhas com prefixo `ASC` são **Advantage+ Shopping Campaigns** — estrutura
 
 | Critério | Threshold | Interpretação |
 |----------|-----------|---------------|
-| ROAS mínimo | ≥ 2.0x (mesmo que manual) | Base da conta — não muda |
+| ROAS mínimo alvo | ≥ 2.0x ROAS (CPA ≤ R$98,05) | Igual ao CPA_ALVO manual. Benchmark real fev/26: 1.33x — 2.0x é meta, não piso histórico |
 | CPA referência | R$ 98,05 a R$ 130,73 | Mesmos targets — mas esperar maior volatilidade diária |
 | Período mínimo de leitura | **14 dias** | ASC precisa de mais dados para estabilizar — não tomar decisão em < 14 dias |
 | Conversões mínimas para rodar bem | **50 compras/semana na conta** | Abaixo disso, ASC tem dificuldade de sair do Learning Limited |

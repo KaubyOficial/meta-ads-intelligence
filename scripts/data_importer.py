@@ -16,6 +16,7 @@ Supported formats: CSV (.csv), JSON (.json)
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import date
@@ -29,6 +30,14 @@ except ImportError:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
+
+# Importar br_num da fonte única de verdade para parsing de números BR
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+try:
+    from aios_utils import br_num as _aios_br_num
+    _HAS_AIOS = True
+except ImportError:
+    _HAS_AIOS = False
 
 
 # ── Column auto-detection map ────────────────────────────────────────────────
@@ -162,22 +171,22 @@ OPTIONAL_FIELDS = [
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def _parse_number(value):
-    """Parse numbers that may use comma as decimal separator (BRL format)."""
+    """Parse numbers BR/EN format. Delega para aios_utils.br_num quando disponivel."""
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     if isinstance(value, (int, float)):
         return float(value)
+    if _HAS_AIOS:
+        return _aios_br_num(value)
+    # Fallback caso aios_utils nao esteja disponivel
     s = str(value).strip()
-    # "1.234,56" → "1234.56" (Brazilian/European format)
     if "," in s and "." in s:
         if s.rindex(",") > s.rindex("."):
             s = s.replace(".", "").replace(",", ".")
-        # else normal "1,234.56" format
         else:
             s = s.replace(",", "")
     elif "," in s and "." not in s:
         s = s.replace(",", ".")
-    # Remove currency symbols
     s = s.replace("R$", "").replace("$", "").replace("€", "").strip()
     try:
         return float(s)

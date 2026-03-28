@@ -346,7 +346,7 @@ Exemplos de ativação:
 3. Sempre ler `config/analyst-rules.md` antes de qualquer análise
 4. Cruzar `diario_*` + `ads_*` + `reembolsos` — nunca análise parcial
 5. Jamais inventar números — se dado ausente, informar claramente
-6. Sempre revisar cálculos antes de publicar (ticket médio = R$ 184,23)
+6. Sempre revisar cálculos antes de publicar (ticket médio = R$ 196,10 — fonte: aios_utils.TICKET_MEDIO)
 
 ---
 

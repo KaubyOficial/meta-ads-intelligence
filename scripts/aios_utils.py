@@ -34,10 +34,13 @@ import pandas as pd
 SHEETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sheets')
 
 # analyst-rules.md Secao 1 — ticket medio R$196,10 (atualizado 2026-03-20)
-CPA_ALVO   = 98.05   # ROI 2.0x
-CPA_BOM    = 108.94  # ROI 1.8x
-CPA_LIMITE = 130.73  # ROI 1.5x
-CPA_CORTE  = 163.42  # ROI 1.2x
+# R$196,10 = produto principal R$173,43 + order bumps media R$22,67
+# FONTE UNICA DE VERDADE — todos os scripts importam daqui
+TICKET_MEDIO = 196.10  # receita media real por venda (principal + bumps)
+CPA_ALVO   = 98.05   # ROAS 2.0x — candidato F3
+CPA_BOM    = 108.94  # ROAS 1.8x — aprovado F2
+CPA_LIMITE = 130.73  # ROAS 1.5x — monitorar
+CPA_CORTE  = 163.42  # ROAS 1.2x — pausar imediatamente se 2d sem venda
 
 STATUS_VALIDO = ['APPROVED', 'COMPLETE']
 
@@ -92,12 +95,19 @@ def sheets_path(alias, date_label=None, sheets_dir=None):
 # ── Parsing numérico ─────────────────────────────────────────────────────────
 
 def br_num(s):
-    """Converte número BR para float. Aceita 'R$ 1.234,56', '1234,56', '1.234', NaN."""
+    """Converte número BR para float. Aceita 'R$ 1.234,56', '-1.234,56', NaN.
+    Fix: preserva sinal negativo mesmo quando R$ aparece entre sinal e número.
+    """
     if pd.isna(s) or s == '' or s == '-':
         return 0.0
     s = str(s).strip()
+    # Preservar sinal negativo antes de qualquer substituição
+    negative = s.startswith('-') or s.startswith('- ')
     s = re.sub(r'R\$\s*', '', s)          # remove R$
     s = s.replace('\xa0', '')              # non-breaking space
+    s = s.strip()
+    # Normalizar "- 1234" → "-1234" (espaço entre sinal e dígitos)
+    s = re.sub(r'^-\s+', '-', s)
     # Detectar formato: se tem vírgula após ponto → BR (1.234,56)
     if re.search(r'\.\d{3},', s):          # 1.234,56
         s = s.replace('.', '').replace(',', '.')
@@ -110,7 +120,11 @@ def br_num(s):
             s = s.replace('.', '')          # 1.234 → 1234
         # else deixar como está (1.23 → 1.23)
     try:
-        return float(s)
+        result = float(s)
+        # Garantir sinal negativo se o original era negativo e float() perdeu
+        if negative and result > 0:
+            result = -result
+        return result
     except ValueError:
         return 0.0
 
@@ -155,7 +169,7 @@ def load_diario(produto, date_label=None, year=2026, month=3):
     Colunas garantidas na saída: DATA_DT, GASTO, VENDAS, IC, IMPRESSOES, CLIQUES
     """
     path = sheets_path(f'diario_{produto}', date_label)
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, encoding='utf-8-sig')  # utf-8-sig remove BOM automaticamente
     df.columns = df.columns.str.strip()
 
     df['DATA_DT'] = parse_date_diario(df['Data'] if 'Data' in df.columns else df.iloc[:, 0])
@@ -181,7 +195,7 @@ def load_vendas(produto, date_label=None, year=2026, month=3,
     Retorna DataFrame com colunas: DATA_DT, VALOR_PAGO, PRODUTO, STATUS, UTM_CONTENT, UTM_CAMPAIGN
     """
     path = sheets_path(f'vendas_{produto}', date_label)
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, encoding='utf-8-sig')
     df.columns = df.columns.str.strip()
 
     # Data
@@ -241,7 +255,7 @@ def load_ads(produto, date_label=None, year=2026, month=3,
     d_ini / d_fim: filtro de periodo customizado (pd.Timestamp). Se None, usa year/month.
     """
     path = sheets_path(f'ads_{produto}', date_label)
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, encoding='utf-8-sig')
     df.columns = df.columns.str.strip()
 
     # ── Data: usar 'date' (Meta API) como primaria ──────────────
@@ -321,6 +335,13 @@ def load_ads(produto, date_label=None, year=2026, month=3,
     df['CLIQUES_N']    = _col_or_api('CLIQU', 'Inline Link Clicks')
     df['VPG_N']        = _col_or_api('VPG', 'Action Landing Page View')
 
+    # Aviso: AD_NAME deve ser unico dentro do produto. Se dois produtos tiverem
+    # ads com o mesmo nome, fazer merge depois por (AD_NAME, PRODUTO).
+    n_total = len(df)
+    n_unique = df['AD_NAME'].nunique()
+    if n_unique < n_total and n_unique > 0:
+        import sys as _sys_warn
+        print(f"[aios_utils] AVISO: {produto} — {n_total} linhas, {n_unique} ADs unicos (media {n_total/n_unique:.1f} dias/ad)", file=_sys_warn.stderr)
     agg = df.groupby('AD_NAME').agg(
         GASTO=('GASTO_N', 'sum'),
         COMPRAS=('COMPRAS_N', 'sum'),
@@ -336,7 +357,7 @@ def load_ads(produto, date_label=None, year=2026, month=3,
 def load_reembolsos(date_label=None, year=2026, month=3):
     """Carrega reembolsos.csv filtrado por período."""
     path = sheets_path('reembolsos', date_label)
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, encoding='utf-8-sig')
     df.columns = df.columns.str.strip()
     data_col = next((c for c in df.columns if 'DATA' in c.upper()), df.columns[0])
     df['DATA_DT'] = parse_date_vendas(df[data_col])

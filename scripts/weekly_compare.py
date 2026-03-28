@@ -11,17 +11,23 @@ Uso:
 """
 
 import argparse
+import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
 
+# Importar constantes e parsers da fonte única de verdade
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from aios_utils import (
+    TICKET_MEDIO, CPA_CORTE,
+    br_num, parse_date_diario,
+    latest_date_label as _aios_latest_date_label,
+)
+
 ROOT    = Path(__file__).resolve().parent.parent
 SHEETS  = ROOT / "data" / "sheets"
-
-TICKET_MEDIO = 184.23
-CPA_CORTE    = 153.53
 
 PRODUTOS = {
     "MDA":  "diario_mda",
@@ -29,13 +35,16 @@ PRODUTOS = {
     "TEUS": "diario_teus",
 }
 
+STATUS_VALIDO = ['APPROVED', 'COMPLETE']
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def latest_date_label():
-    files = sorted(SHEETS.glob("*_manifest.json"), reverse=True)
-    if not files:
+    """Usa aios_utils.latest_date_label() que prefere ISO dates sobre aliases."""
+    label = _aios_latest_date_label(str(SHEETS))
+    if not label:
         print("ERRO: Rode sheets_collector.py primeiro.")
         sys.exit(1)
-    return files[0].name[:10]
+    return label
 
 
 def load_diario(produto, date_label):
@@ -43,22 +52,21 @@ def load_diario(produto, date_label):
     path = SHEETS / f"{date_label}_{alias}.csv"
     if not path.exists():
         return pd.DataFrame()
-    df = pd.read_csv(path)
-    df["Data"] = pd.to_datetime(df["Data"], errors="coerce", dayfirst=True)
-    df["Gasto"] = (
-        df["Gasto"].astype(str)
-        .str.replace("R$ ", "", regex=False)
-        .str.replace(".", "", regex=False)
-        .str.replace(",", ".", regex=False)
-    )
-    df["Gasto"] = pd.to_numeric(df["Gasto"], errors="coerce").fillna(0)
+    df = pd.read_csv(path, encoding='utf-8-sig')
+    # Parsear data com aios_utils (DD/MM/YYYY)
+    data_col = next((c for c in df.columns if c.strip().lower() in ('data', 'date')), df.columns[0])
+    df["Data"] = parse_date_diario(df[data_col])
+    # Gasto via br_num (suporta R$, pontos de milhar, vírgula decimal)
+    gasto_col = next((c for c in df.columns if 'gasto' in c.lower()), None)
+    df["Gasto"] = df[gasto_col].apply(br_num) if gasto_col else 0.0
     for col in ["Vendas", "IC", "Cliques no Link", "Alcance", "VPV"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     # Impressoes com pontos de milhar
-    if "Impressoes" not in df.columns and "Impressões" in df.columns:
+    imp_col = next((c for c in df.columns if 'impress' in c.lower()), None)
+    if imp_col and "Impressoes" not in df.columns:
         df["Impressoes"] = (
-            df["Impressões"].astype(str)
+            df[imp_col].astype(str)
             .str.replace(".", "", regex=False)
             .str.replace(",", ".", regex=False)
         )
@@ -70,16 +78,48 @@ def load_reembolsos(date_label):
     path = SHEETS / f"{date_label}_reembolsos.csv"
     if not path.exists():
         return pd.DataFrame()
-    df = pd.read_csv(path)
-    df["DATA"] = pd.to_datetime(df["DATA"], errors="coerce", dayfirst=True)
-    df["valor_num"] = (
-        df["VALOR REEMBOLSADO"].astype(str)
-        .str.replace("R$ ", "", regex=False)
-        .str.replace(".", "", regex=False)
-        .str.replace(",", ".", regex=False)
-    )
-    df["valor_num"] = pd.to_numeric(df["valor_num"], errors="coerce").fillna(0)
+    df = pd.read_csv(path, encoding='utf-8-sig')
+    df["DATA"] = parse_date_diario(df["DATA"])
+    val_col = next((c for c in df.columns if 'valor' in c.lower() and 'reembol' in c.lower()), None)
+    df["valor_num"] = df[val_col].apply(br_num) if val_col else 0.0
     return df
+
+
+def load_vendas_real(date_label, since_ts, until_ts):
+    """
+    Carrega faturamento real (VALOR PAGO) de vendas_*.csv para o período.
+    Retorna dict com total e por produto.
+    Substitui receita_bruta = vendas * TICKET_MEDIO por dados reais.
+    """
+    resultado = {'total': 0.0, 'MDA': 0.0, 'LVC': 0.0, 'TEUS': 0.0}
+    for produto in ['mda', 'lvc', 'teus']:
+        path = SHEETS / f"{date_label}_vendas_{produto}.csv"
+        if not path.exists():
+            continue
+        try:
+            df = pd.read_csv(path, encoding='utf-8-sig')
+            df.columns = df.columns.str.strip()
+            # Excluir acelerador comercial
+            if 'PRODUTO' in df.columns:
+                df = df[~df['PRODUTO'].str.contains('Acelerador', case=False, na=False)]
+            # STATUS válido
+            if 'STATUS' in df.columns:
+                df = df[df['STATUS'].isin(STATUS_VALIDO)]
+            # Data
+            data_col = next((c for c in df.columns if 'DATA' in c.upper() or 'DATE' in c.upper()), None)
+            if data_col is None:
+                continue
+            df['_dt'] = pd.to_datetime(df[data_col].astype(str).str[:10], format='%d/%m/%Y', errors='coerce')
+            df = df[(df['_dt'] >= since_ts) & (df['_dt'] <= until_ts)]
+            # VALOR PAGO
+            val_col = next((c for c in df.columns if 'VALOR' in c.upper() and 'PAGO' in c.upper()), None)
+            if val_col and not df.empty:
+                total_prod = df[val_col].apply(br_num).sum()
+                resultado[produto.upper()] = total_prod
+                resultado['total'] += total_prod
+        except Exception:
+            pass
+    return resultado
 
 
 def slice_period(df, since, until, date_col="Data"):
@@ -141,7 +181,11 @@ def calc_week(date_label, since, until, reembolsos_df):
     total_reembolsos = reembolsos_periodo["valor_num"].sum() if not reembolsos_periodo.empty else 0
     qtd_reembolsos   = len(reembolsos_periodo)
 
-    receita_bruta = total_vendas * TICKET_MEDIO
+    # Receita real (VALOR PAGO) — substitui vendas * TICKET_MEDIO
+    since_ts = pd.Timestamp(since)
+    until_ts = pd.Timestamp(until)
+    receita_real = load_vendas_real(date_label, since_ts, until_ts)
+    receita_bruta = receita_real['total'] if receita_real['total'] > 0 else total_vendas * TICKET_MEDIO
     receita_liq   = receita_bruta - total_reembolsos
     lucro         = receita_liq - total_gasto
     roas          = round(receita_bruta / total_gasto, 2) if total_gasto > 0 else 0
@@ -156,6 +200,7 @@ def calc_week(date_label, since, until, reembolsos_df):
         "cliques": total_clk,
         "roas": roas,
         "lucro": lucro,
+        "receita_bruta": receita_bruta,
         "reembolsos_valor": total_reembolsos,
         "reembolsos_qtd": qtd_reembolsos,
         "produtos": produtos_data,
@@ -401,7 +446,8 @@ def main():
         reem_total   = sum(d["reembolsos_valor"] for d in dados)
         print(f"Investimento total: {fmt_brl(gasto_total)}")
         print(f"Vendas totais:      {vendas_total}")
-        print(f"Receita bruta:      {fmt_brl(vendas_total * TICKET_MEDIO)}")
+        receita_total = sum(d.get("receita_bruta", d["gasto"]) for d in dados)
+        print(f"Receita bruta:      {fmt_brl(receita_total)}")
         print(f"Reembolsos:         {fmt_brl(reem_total)}")
         print(f"Lucro total:        {fmt_brl(lucro_total)}")
         if gasto_total > 0:

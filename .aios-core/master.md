@@ -87,16 +87,18 @@ from aios_utils import *
 ## 4. CONSTANTES DE NEGÓCIO
 
 ```python
-# CPA Targets (ticket médio R$184,23 × margem target)
-CPA_ALVO   = 92.12    # 2.0x ROI  — [ALVO]
-CPA_BOM    = 102.35   # 1.8x ROI  — [BOM]
-CPA_LIMITE = 122.82   # 1.5x ROI  — [LIMITE]
-CPA_CORTE  = 153.53   # 1.2x ROI  — [CORTE]
+# CPA Targets (ticket médio R$196,10 × ROAS target)
+# Fonte: analyst-rules.md Seção 1 | Script: scripts/aios_utils.py
+CPA_ALVO   = 98.05    # 2.0x ROAS — [ALVO] candidato F3
+CPA_BOM    = 108.94   # 1.8x ROAS — [BOM]  aprovado F2
+CPA_LIMITE = 130.73   # 1.5x ROAS — [LIMITE] monitorar
+CPA_CORTE  = 163.42   # 1.2x ROAS — [CORTE] pausar se 2d sem venda
 # > CORTE = [PAUSAR]
 
-# TICKET MÉDIO: R$184,23
-# → USO EXCLUSIVO: calcular thresholds acima
-# → PROIBIDO: multiplicar por vendas para estimar faturamento
+# TICKET MÉDIO: R$196,10
+# = produto principal R$173,43 + order bumps media R$22,67
+# → USO EXCLUSIVO: calcular thresholds acima e ROAS estimado no funil
+# → PROIBIDO: multiplicar por vendas para calcular faturamento (usar VALOR PAGO real)
 
 # ROAS Benchmarks (fev/26)
 ROAS_SAUDAVEL = 1.33
@@ -139,10 +141,12 @@ STATUS_VALIDO = ['APPROVED', 'COMPLETE']
 *fadiga     → @analyst → funnel_status.py --mode fadiga
 
 *pl         → @analyst → quick_status.py --mode pl
-*mes        → @analyst → quick_status.py --mode status --period month
 *lucro      → @analyst → quick_status.py --mode pl (alias)
+*mes        → @analyst → quick_status.py --mode status --period month
 *roi [prod] → @analyst → quick_status.py --mode pl --produto {prod}
 *budget     → @analyst → quick_status.py --mode budget
+*origem     → @analyst → quick_status.py --mode origem (vendas por canal: Facebook/Bio/Hotmart/Manychat/Comercial)
+*checkout   → @analyst → quick_status.py --mode status (foco IC/checkout por produto)
 
 *comparar   → @analyst → weekly_compare.py --weeks 2
 *benchmarks → @analyst → (comparar vs account-benchmarks.md)

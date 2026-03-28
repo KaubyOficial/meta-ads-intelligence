@@ -97,6 +97,23 @@ VSL C superou VSL A em conversão de checkout em todas as semanas analisadas. VS
 
 ---
 
+## Benchmarks — Março 2026
+
+> Atualizar com dados reais ao fechar o mês. Rodar `*mensal` para consolidar.
+> Última atualização: pendente (fechar mês em 31/03/2026)
+
+| Métrica | Sem 1 (02–08/03) | Sem 2 (09–15/03) | Sem 3 (16–22/03) | Sem 4 (23–29/03) | Referência |
+|---------|------------------|------------------|------------------|------------------|------------|
+| Investimento | — | — | — | — | Preencher |
+| Vendas | — | — | — | — | Preencher |
+| ROAS | — | — | — | — | Preencher |
+| Lucro semana | — | — | — | — | Preencher |
+
+> **Nota:** Campanha LVC pausada ~09/03/2026. Receita LVC (esteira/orgânica) ainda conta.
+> MDA e TEUS em operação ao longo de março.
+
+---
+
 ## Análise a Nível de Criativo — Instruções para @analyst
 
 > ⚠️ IMPORTANTE: Análise de criativo só é possível com CSV exportado a nível de ANÚNCIO (não de campanha).
@@ -108,8 +125,8 @@ VSL C superou VSL A em conversão de checkout em todas as semanas analisadas. VS
 ### Quando o CSV for a nível de anúncio, @analyst DEVE:
 1. Agrupar criativos por fase (F1/F2/F3) via nome da campanha
 2. Rankear criativos dentro de cada fase por CPA
-3. Identificar criativos candidatos a promoção (CPA ≤ R$ 102,35 na F1)
-4. Identificar criativos candidatos a corte (CPA > R$ 153,53 + sem venda em 2 dias)
+3. Identificar criativos candidatos a promoção (CPA ≤ R$ 108,94 na F1 = CPA_BOM)
+4. Identificar criativos candidatos a corte (CPA > R$ 163,42 + sem venda em 2 dias = CPA_CORTE)
 5. Comparar VSL A vs VSL B vs VSL C dentro do mesmo conjunto
 6. Verificar se há criativos na F2/F3 com frequência > 3.0x (sinal de fadiga)
 

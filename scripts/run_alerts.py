@@ -8,8 +8,8 @@ from aios_utils import *
 from datetime import date as dtdate
 
 label = latest_date_label()
-Y, M = 2026, 3
-hoje = dtdate(Y, M, 18)
+hoje = dtdate.today()
+Y, M = hoje.year, hoje.month
 
 # ── Carregar ads (plataforma) — com range de datas ────────────────────────────
 def get_ads_all():
@@ -26,6 +26,9 @@ def get_ads_all():
                 ranges[produto] = (raw['DATA_DT'].min(), raw['DATA_DT'].max())
             df = load_ads(produto, label, Y, M)
             df['PRODUTO'] = produto.upper()
+            # aios_utils.load_ads() usa 'AD_NAME'; renomear para 'NOME ADS' (padrão do script)
+            if 'AD_NAME' in df.columns and 'NOME ADS' not in df.columns:
+                df = df.rename(columns={'AD_NAME': 'NOME ADS'})
             rows.append(df)
         except:
             pass
@@ -132,9 +135,10 @@ merged[['ALERTA', 'MOTIVO']] = merged.apply(
     lambda r: pd.Series(classificar(r)), axis=1)
 
 # ── Separar por urgência ───────────────────────────────────────────────────────
-pausar    = merged[merged['ALERTA'] == 'PAUSAR AGORA'].sort_values('CPA_REF', ascending=False)
-alerta    = merged[merged['ALERTA'] == 'ALERTA'].sort_values('CPA_REF', ascending=False)
-monitorar = merged[merged['ALERTA'].isin(['MONITORAR', 'PAUSAR'])].sort_values('GASTO', ascending=False)
+pausar         = merged[merged['ALERTA'] == 'PAUSAR AGORA'].sort_values('CPA_REF', ascending=False)
+alerta         = merged[merged['ALERTA'] == 'ALERTA'].sort_values('CPA_REF', ascending=False)
+sem_atribuicao = merged[merged['ALERTA'] == 'PAUSAR'].sort_values('GASTO', ascending=False)
+monitorar      = merged[merged['ALERTA'] == 'MONITORAR'].sort_values('GASTO', ascending=False)
 ok_count  = len(merged[merged['ALERTA'] == 'OK'])
 
 # Colunas principais — inclui CAMPANHA e periodo no header
@@ -202,18 +206,15 @@ if not alerta.empty:
     print('-' * 80)
     show(alerta)
 
+if not sem_atribuicao.empty:
+    print(f'\n[GASTO SEM ATRIBUICAO] -- {len(sem_atribuicao)} criativo(s) com gasto e 0 vendas pixel')
+    print('-' * 80)
+    show(sem_atribuicao, ['NOME ADS', 'PRODUTO', 'CAMPANHA', 'GASTO', 'COMPRAS', 'CPA_REF', 'MOTIVO'])
 if not monitorar.empty:
-    sem_dados = monitorar[monitorar['ALERTA'] == 'PAUSAR']
-    limite    = monitorar[monitorar['ALERTA'] == 'MONITORAR']
-    if not sem_dados.empty:
-        print(f'\n[GASTO SEM ATRIBUICAO] -- {len(sem_dados)} criativo(s) com gasto e 0 vendas pixel')
-        print('-' * 80)
-        show(sem_dados, ['NOME ADS', 'PRODUTO', 'CAMPANHA', 'GASTO', 'COMPRAS', 'CPA_REF', 'MOTIVO'])
-    if not limite.empty:
-        print(f'\n[MONITORAR -- CPA no LIMITE] -- {len(limite)} criativo(s)')
-        print('-' * 80)
-        show(limite, ['NOME ADS', 'PRODUTO', 'CAMPANHA', 'GASTO', 'VENDAS_PIX', 'CPA_REF',
-                      'PRIMEIRA_VENDA', 'ULTIMA_VENDA', 'MOTIVO'])
+    print(f'\n[MONITORAR -- CPA no LIMITE] -- {len(monitorar)} criativo(s)')
+    print('-' * 80)
+    show(monitorar, ['NOME ADS', 'PRODUTO', 'CAMPANHA', 'GASTO', 'VENDAS_PIX', 'CPA_REF',
+                     'PRIMEIRA_VENDA', 'ULTIMA_VENDA', 'MOTIVO'])
 
 print(f'\n[OK] -- {ok_count} criativos dentro dos targets')
 print()

@@ -19,12 +19,12 @@ workflow:
     data_source_primary: "Google Sheets (planilha Templo do Perpétuo)"
     data_source_secondary: "Meta Ads API (data/processed/)"
     spreadsheet_id: "1_3pCHweiFK1aksrDA4KbUvmrJtzeEQwTqad3Cvdyd4I"
-    ticket_medio: 184.23
+    ticket_medio: 196.10
     cpa_targets:
-      alvo: 92.12
-      bom: 102.35
-      limite: 122.82
-      corte: 153.53
+      alvo: 98.05
+      bom: 108.94
+      limite: 130.73
+      corte: 163.42
 
   # ═══════════════════════════════════════════════════════════════════════════
   #                              INPUTS
@@ -230,7 +230,7 @@ workflow:
         - "SEMPRE ler account-benchmarks.md para comparação histórica"
         - "Classificar cada campanha por fase: F1/F2/F3/RMKT/F0"
         - "Separar tráfego frio [F] vs quente [Q]"
-        - "Calcular CPA real usando ticket_medio=184.23"
+        - "Calcular CPA real usando ticket_medio=196.10 (R$196,10 = produto principal + order bumps)"
         - "Respeitar janela de 7 dias para orçamento"
         - "ROAS saudável ≥ 1.33x | Alerta < 1.20x | Crítico < 1.15x"
         - "Nunca recomendar ajuste de budget dentro da janela de 7 dias"
@@ -379,7 +379,7 @@ workflow:
           - "Nenhum placeholder vazio"
           - "Recomendações ordenadas por prioridade"
           - "Seção rules_applied presente"
-          - "Todos os CPAs calculados com ticket_medio=184.23"
+          - "Todos os CPAs calculados com ticket_medio=196.10"
           - "Nenhum número inventado — tudo referenciado nos dados"
 
       creates:

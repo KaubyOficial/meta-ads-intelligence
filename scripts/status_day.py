@@ -6,7 +6,8 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from aios_utils import *
 
-TARGET_DATE = sys.argv[1] if len(sys.argv) > 1 else '2026-03-18'
+from datetime import date as _today_date
+TARGET_DATE = sys.argv[1] if len(sys.argv) > 1 else _today_date.today().strftime('%Y-%m-%d')
 Y, M, D = [int(x) for x in TARGET_DATE.split('-')]
 
 label = latest_date_label()
@@ -136,8 +137,8 @@ print(f'  Lucro liquido: {fmt_brl(lucro_liq)}')
 print(f'  IC (checkout): {ic_total}  |  Impressoes: {imp_total:,}')
 
 # Benchmarks
-print(f'\n  ROAS vs benchmark (>=1,33x): {fmt_roas(roas["total"])} {bar("",roas["total"] if roas["total"] else 0, 1.33)}')
-print(f'  CPA total vs CORTE (R$153):  {fmt_cpa(cpa["total"])} {bar("",cpa["total"] if cpa["total"] else 999, CPA_CORTE, higher_is_better=False)}')
+print(f'\n  ROAS vs benchmark (>=1,33x):       {fmt_roas(roas["total"])} {bar("",roas["total"] if roas["total"] else 0, 1.33)}')
+print(f'  CPA total vs CORTE ({fmt_cpa(CPA_CORTE)}):  {fmt_cpa(cpa["total"])} {bar("",cpa["total"] if cpa["total"] else 999, CPA_CORTE, higher_is_better=False)}')
 
 # Breakdown faturamento
 print(f'\n  FATURAMENTO DETALHADO:')

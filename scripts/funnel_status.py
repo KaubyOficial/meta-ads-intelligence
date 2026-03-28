@@ -12,19 +12,21 @@ Classifica cada campanha/criativo por fase e recomenda movimentos.
 
 import argparse
 import sys
+import os
 from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
 
+# Importar constantes e utilitários da fonte única de verdade (aios_utils.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from aios_utils import (
+    CPA_ALVO, CPA_BOM, CPA_LIMITE, CPA_CORTE, TICKET_MEDIO,
+    latest_date_label as _aios_latest_date_label,
+)
+
 ROOT   = Path(__file__).resolve().parent.parent
 SHEETS = ROOT / "data" / "sheets"
-
-TICKET_MEDIO = 184.23
-CPA_ALVO     = 92.12
-CPA_BOM      = 102.35
-CPA_LIMITE   = 122.82
-CPA_CORTE    = 153.53
 
 # Palavras-chave nos nomes de campanha para classificar fase
 FASE_KEYWORDS = {
@@ -37,11 +39,12 @@ FASE_KEYWORDS = {
 
 
 def latest_date_label():
-    files = sorted(SHEETS.glob("*_manifest.json"), reverse=True)
-    if not files:
+    """Usa aios_utils.latest_date_label() que prefere ISO dates sobre aliases ('hoje')."""
+    label = _aios_latest_date_label(str(SHEETS))
+    if not label:
         print("ERRO: Rode sheets_collector.py primeiro.")
         sys.exit(1)
-    return files[0].name[:10]
+    return label
 
 
 def classify_campaign(name: str) -> str:
@@ -75,13 +78,99 @@ def load_ads(produto_alias, date_label, since, until):
 
 
 def load_campaigns(date_label, since, until):
+    """
+    Carrega dados de campanha a partir de data/sheets/ads_*.csv (TIER 1).
+    Agrupa por Campaign Name (coluna Meta API). Se nao disponivel, usa
+    data/processed/campaign_performance.csv como fallback com frequencia
+    do ultimo dia (nao media do periodo).
+    """
+    rows = []
+    for produto_alias in ["ads_mda", "ads_lvc", "ads_teus"]:
+        path = SHEETS / f"{date_label}_{produto_alias}.csv"
+        if not path.exists():
+            continue
+        try:
+            df = pd.read_csv(path, encoding="utf-8-sig")
+        except Exception:
+            df = pd.read_csv(path)
+        df.columns = df.columns.str.strip()
+
+        # Coluna de data: preferir 'date' (Meta API, YYYY-MM-DD)
+        date_col = "date" if "date" in df.columns else ("DATA" if "DATA" in df.columns else None)
+        if date_col is None:
+            continue
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df = df[(df[date_col] >= pd.Timestamp(since)) & (df[date_col] <= pd.Timestamp(until))].copy()
+        if df.empty:
+            continue
+
+        # Procurar coluna Campaign Name (Meta API export)
+        camp_col = next(
+            (c for c in df.columns if "campaign" in c.lower() and "name" in c.lower()),
+            None,
+        )
+        if camp_col is None:
+            continue  # sem campaign name → tentar fallback
+
+        spend_col = "Spend (Cost, Amount Spent)"
+        buy_col   = "Action Omni Purchase"
+        imp_col   = "Impressions"
+        reach_col = "Reach"
+
+        for col in [spend_col, buy_col, imp_col, reach_col]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+        agg_kwargs = {}
+        if spend_col in df.columns:  agg_kwargs["spend"]       = (spend_col, "sum")
+        if buy_col   in df.columns:  agg_kwargs["results"]     = (buy_col,   "sum")
+        if imp_col   in df.columns:  agg_kwargs["impressions"] = (imp_col,   "sum")
+        if reach_col in df.columns:  agg_kwargs["reach"]       = (reach_col, "sum")
+        if not agg_kwargs:
+            continue
+
+        g = df.groupby(camp_col).agg(**agg_kwargs).reset_index()
+        g = g.rename(columns={camp_col: "campaign_name"})
+        rows.append(g)
+
+    if rows:
+        combined = pd.concat(rows, ignore_index=True)
+        combined = combined[combined["spend"] > 0].copy()
+        # Frequencia estimada via impressoes / reach
+        if "reach" in combined.columns and "impressions" in combined.columns:
+            combined["frequency"] = combined.apply(
+                lambda r: round(r["impressions"] / r["reach"], 2) if r.get("reach", 0) > 0 else 0,
+                axis=1,
+            )
+        else:
+            combined["frequency"] = 0
+        if "results" not in combined.columns:
+            combined["results"] = 0
+        return combined
+
+    # Fallback: data/processed/ com frequencia do ultimo dia (nao media)
     path = ROOT / "data" / "processed" / "campaign_performance.csv"
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df[(df["date"] >= pd.Timestamp(since)) & (df["date"] <= pd.Timestamp(until))].copy()
-    return df[df["spend"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+    # Frequencia do ultimo dia disponivel (nao media — representa saturacao atual)
+    last_day = df["date"].max()
+    freq_last = (
+        df[df["date"] == last_day]
+        .groupby("campaign_name")["frequency"]
+        .mean()
+        if "frequency" in df.columns else pd.Series(dtype=float)
+    )
+    g = df.groupby("campaign_name").agg(
+        spend=("spend", "sum"),
+        results=("results", "sum"),
+    ).reset_index()
+    g["frequency"] = g["campaign_name"].map(freq_last).fillna(0)
+    return g[g["spend"] > 0].copy()
 
 
 def cpa_status(cpa):
@@ -313,7 +402,7 @@ def show_checklist():
             "[3] Checar *pausar para alertas criticos",
         ],
         2: [  # Quarta
-            "[1] CORTE F1: CPA > R$153,53 + zero venda nos ultimos 2 dias = PAUSAR",
+            "[1] CORTE F1: CPA > R$163,42 + zero venda nos ultimos 2 dias = PAUSAR",
             "[2] Verificar budget F2 -- esta dentro da janela de 7 dias?",
             "[3] Checar frequencia em F3 (> 2.5x = alerta antecipado)",
             "[4] Rodar *funil para ver status completo de cada fase",
@@ -325,9 +414,9 @@ def show_checklist():
             "[3] Checar *criativos para ver ranking atualizado",
         ],
         4: [  # Sexta
-            "[1] FECHAR LEITURA F1: identificar aprovados (CPA <= R$102,35)",
+            "[1] FECHAR LEITURA F1: identificar aprovados (CPA <= R$108,94)",
             "[2] PROMOVER para F2: criativos aprovados com CPA BOM/ALVO",
-            "[3] IDENTIFICAR candidatos F3: CPA <= R$92,12 por multiplos dias consecutivos",
+            "[3] IDENTIFICAR candidatos F3: CPA <= R$98,05 por multiplos dias consecutivos",
             "[4] Pausar criativos ruins na F2 para abrir espaço aos aprovados da F1",
             "[5] Rodar *comparar para ver semana vs semana",
             "[6] Rodar *report para gerar relatorio semanal completo",
